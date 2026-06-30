@@ -1,0 +1,14 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+pydantic-settings>=2.2
+requests>=2.31
+feedparser>=6.0
+yfinance>=0.2
+pandas>=2.2
+numpy>=1.26
+vaderSentiment>=3.3
+typer>=0.12
+rich>=13.7
+
+pytest>=8.0
