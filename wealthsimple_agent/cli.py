@@ -15,6 +15,8 @@ from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars, latest
 from wealthsimple_agent.news.rss import fetch_rss
 from wealthsimple_agent.risk import RiskLimits
 from wealthsimple_agent.broker.paper import PaperBroker
+from wealthsimple_agent.portal.runner import DEFAULT_UNIVERSE, PortalConfig, run_daily
+from wealthsimple_agent.portal.store import Store
 
 
 app = typer.Typer(add_completion=False, help="Wealthsimple Trading Agent (signals + paper trading).")
@@ -152,6 +154,83 @@ def backtest(
             indent=2,
         )
     )
+
+
+portal_app = typer.Typer(add_completion=False, help="Daily recommendation portal (paper trading).")
+app.add_typer(portal_app, name="portal")
+
+
+@portal_app.command("daily")
+def portal_daily(
+    daily_budget: float = typer.Option(100.0, "--daily-budget", min=1.0),
+    monthly_target_pct: float = typer.Option(0.30, "--monthly-target-pct", min=0.0, max=2.0),
+    take_profit_pct: float = typer.Option(0.03, "--take-profit-pct", min=0.001),
+    stop_loss_pct: float = typer.Option(0.02, "--stop-loss-pct", min=0.001),
+    max_hold_days: int = typer.Option(5, "--max-hold-days", min=1, max=30),
+    max_new_buys: int = typer.Option(3, "--max-new-buys", min=1, max=10),
+    min_confidence: float = typer.Option(0.6, "--min-confidence", min=0.0, max=1.0),
+    universe: list[str] = typer.Option(None, "--universe", help="Tickers to consider"),
+    rss_url: list[str] = typer.Option(None, "--rss-url", help="RSS feed URL(s)"),
+    db_path: str = typer.Option("portal.db", "--db-path"),
+):
+    cfg = PortalConfig(
+        daily_budget=daily_budget,
+        monthly_target_pct=monthly_target_pct,
+        take_profit_pct=take_profit_pct,
+        stop_loss_pct=stop_loss_pct,
+        max_hold_days=max_hold_days,
+        max_new_buys_per_day=max_new_buys,
+        min_confidence_to_buy=min_confidence,
+        universe=[t.strip().upper() for t in (universe or DEFAULT_UNIVERSE) if t.strip()],
+        rss_urls=list(rss_url or []),
+    )
+    with Store(db_path) as store:
+        report = run_daily(cfg=cfg, store=store)
+    rprint(json.dumps(report.as_dict(), indent=2))
+
+
+@portal_app.command("monthly")
+def portal_monthly(
+    year_month: str = typer.Option(..., "--month", help="YYYY-MM"),
+    daily_budget: float = typer.Option(100.0, "--daily-budget", min=1.0),
+    db_path: str = typer.Option("portal.db", "--db-path"),
+):
+    from wealthsimple_agent.portal.monthly import compute_monthly_progress
+
+    with Store(db_path) as store:
+        realized = store.realized_pnl_in_month(year_month=year_month)
+        days_run = store.days_run_in_month(year_month=year_month)
+        progress = compute_monthly_progress(
+            year_month=year_month,
+            daily_budget=daily_budget,
+            target_pct=0.30,
+            planned_trading_days=21,
+            realized_pnl=realized,
+            days_run=days_run,
+        )
+        trades = store.trades_in_month(year_month=year_month)
+    rprint(
+        json.dumps(
+            {
+                "progress": progress.as_dict(),
+                "trades": trades,
+                "disclaimer": "Target is aspirational and not guaranteed. Trading involves risk of loss.",
+            },
+            indent=2,
+        )
+    )
+
+
+@portal_app.command("history")
+def portal_history(
+    day: str = typer.Option(..., "--day", help="YYYY-MM-DD"),
+    db_path: str = typer.Option("portal.db", "--db-path"),
+):
+    from datetime import date as _date
+
+    with Store(db_path) as store:
+        recs = store.recommendations_for_day(day=_date.fromisoformat(day))
+    rprint(json.dumps(recs, indent=2))
 
 
 def main() -> None:

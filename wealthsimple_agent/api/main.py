@@ -12,9 +12,11 @@ from wealthsimple_agent.fees import FeeModel
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars, latest_close
 from wealthsimple_agent.news.rss import fetch_rss
 from wealthsimple_agent.risk import RiskLimits
+from wealthsimple_agent.portal.router import router as portal_router
 
 
 app = FastAPI(title="Wealthsimple Trading Agent (Signals)", version="0.1.0")
+app.include_router(portal_router)
 
 
 class SignalsRequest(BaseModel):
