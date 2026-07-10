@@ -49,6 +49,7 @@ class Position(BaseModel):
     ticker: str
     quantity: float
     avg_price: float
+    opened_day: Optional[date] = None
 
 
 class PortfolioSnapshot(BaseModel):
