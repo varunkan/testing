@@ -28,6 +28,12 @@
     return d === "BUY" ? "BUY" : d === "SELL" ? "SELL" : "HOLD";
   }
 
+  // API base URL is injected at build time (or set manually for local backend testing).
+  const API_BASE_URL = window.API_BASE_URL || "";
+  function api(path) {
+    return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
+  }
+
   function plannedDays() {
     return 21;
   }
@@ -221,10 +227,10 @@
 
   async function refreshPaperViews() {
     const [portfolioRes, tradesRes, perfRes] = await Promise.all([
-      fetch("/portal/portfolio"),
-      fetch("/portal/trades"),
+      fetch(api("/portal/portfolio")),
+      fetch(api("/portal/trades")),
       fetch(
-        `/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`
+        api(`/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`)
       ),
     ]);
     if (portfolioRes.ok) renderPortfolio(await portfolioRes.json());
@@ -233,7 +239,7 @@
   }
 
   async function executeTestTrade(payload) {
-    const res = await fetch("/portal/test-trade", {
+    const res = await fetch(api("/portal/test-trade"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
@@ -249,7 +255,7 @@
     runDayBtn.disabled = true;
     setStatus("Researching morning ideas + paper fills…");
     try {
-      const res = await fetch("/portal/daily", {
+      const res = await fetch(api("/portal/daily"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ config: configPayload() }),
@@ -362,7 +368,7 @@
     const starting = Number(dailyBudget.value) || 1000;
     if (!window.confirm(`Reset paper account to $${starting.toFixed(0)} cash and clear positions?`)) return;
     try {
-      const res = await fetch("/portal/paper/reset", {
+      const res = await fetch(api("/portal/paper/reset"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ starting_cash: starting }),
@@ -382,7 +388,7 @@
     box.textContent = "Measuring…";
     try {
       const res = await fetch(
-        `/portal/accuracy/${encodeURIComponent(ticker)}?horizon_days=${horizon}&threshold_pct=0.01&lookback_days=180`
+        api(`/portal/accuracy/${encodeURIComponent(ticker)}?horizon_days=${horizon}&threshold_pct=0.01&lookback_days=180`)
       );
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
@@ -411,7 +417,7 @@
     resultBox.textContent = "Gathering analyst & market-driver opinions…";
     listBox.innerHTML = "";
     try {
-      const res = await fetch(`/portal/personas/${encodeURIComponent(ticker)}?lookback_days=90`);
+      const res = await fetch(api(`/portal/personas/${encodeURIComponent(ticker)}?lookback_days=90`));
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
       if (!d.opinions || !d.opinions.length) {
@@ -465,7 +471,7 @@
     info.hidden = false;
     info.textContent = "Loading…";
     try {
-      const res = await fetch("/portal/universes");
+      const res = await fetch(api("/portal/universes"));
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
       const lines = Object.entries(d.presets || {})
