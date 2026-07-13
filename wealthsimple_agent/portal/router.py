@@ -26,12 +26,13 @@ _DEFAULT_DB = Path("portal.db")
 class PortalConfigModel(BaseModel):
     daily_budget: float = Field(default=100.0, gt=0)
     monthly_target_pct: float = Field(default=1.0, ge=0.0, le=2.0)
-    take_profit_pct: float = Field(default=0.03, gt=0.0)
+    take_profit_pct: float = Field(default=0.04, gt=0.0)
     stop_loss_pct: float = Field(default=0.02, gt=0.0)
-    max_hold_days: int = Field(default=5, ge=1, le=30)
-    max_new_buys_per_day: int = Field(default=3, ge=1, le=10)
-    min_confidence_to_buy: float = Field(default=0.6, ge=0.0, le=1.0)
+    max_hold_days: int = Field(default=7, ge=1, le=30)
+    max_new_buys_per_day: int = Field(default=4, ge=1, le=10)
+    min_confidence_to_buy: float = Field(default=0.55, ge=0.0, le=1.0)
     planned_trading_days_per_month: int = Field(default=21, ge=1, le=31)
+    lookback_days: int = Field(default=90, ge=20, le=365)
     universe: list[str] = Field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     rss_urls: list[str] = Field(default_factory=list)
     db_path: str = Field(default=str(_DEFAULT_DB))
@@ -53,6 +54,7 @@ def run_daily_endpoint(req: DailyRunRequest = Body(default_factory=DailyRunReque
         max_new_buys_per_day=req.config.max_new_buys_per_day,
         min_confidence_to_buy=req.config.min_confidence_to_buy,
         planned_trading_days_per_month=req.config.planned_trading_days_per_month,
+        lookback_days=req.config.lookback_days,
         universe=[t.strip().upper() for t in req.config.universe if t.strip()],
         rss_urls=list(req.config.rss_urls),
     )

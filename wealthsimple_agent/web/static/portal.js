@@ -65,12 +65,13 @@
     return {
       daily_budget: Number(dailyBudget.value) || 100,
       monthly_target_pct: targetPct(),
-      take_profit_pct: 0.03,
+      take_profit_pct: 0.04,
       stop_loss_pct: 0.02,
-      max_hold_days: 5,
-      max_new_buys_per_day: 3,
-      min_confidence_to_buy: 0.6,
+      max_hold_days: 7,
+      max_new_buys_per_day: 4,
+      min_confidence_to_buy: 0.55,
       planned_trading_days_per_month: plannedDays(),
+      lookback_days: 90,
       universe: parseUniverse(),
       rss_urls: [],
     };

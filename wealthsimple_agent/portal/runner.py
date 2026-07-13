@@ -15,21 +15,43 @@ from wealthsimple_agent.portal.monthly import compute_monthly_progress
 from wealthsimple_agent.portal.store import Store
 from wealthsimple_agent.risk import RiskLimits
 from wealthsimple_agent.strategy.baseline import generate_signal
+from wealthsimple_agent.strategy.advanced import (
+    compute_factors,
+    dynamic_exit_levels,
+    estimate_expected_edge,
+)
 
 
-DEFAULT_UNIVERSE = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "SPY", "QQQ", "GLD", "XOM"]
+DEFAULT_UNIVERSE = [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA",
+    "META",
+    "TSLA",
+    "AVGO",
+    "JPM",
+    "XOM",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "GLD",
+    "TLT",
+]
 
 
 @dataclass
 class PortalConfig:
     daily_budget: float = 100.0
     monthly_target_pct: float = 1.0  # double capital this month (aspirational, NOT guaranteed)
-    take_profit_pct: float = 0.03
+    take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02
-    max_hold_days: int = 5
-    max_new_buys_per_day: int = 3
-    min_confidence_to_buy: float = 0.6
+    max_hold_days: int = 7
+    max_new_buys_per_day: int = 4
+    min_confidence_to_buy: float = 0.55
     planned_trading_days_per_month: int = 21
+    lookback_days: int = 90
     universe: list[str] = field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     rss_urls: list[str] = field(default_factory=list)
 
@@ -99,10 +121,11 @@ def _build_exit_intents(
     *,
     positions: list,
     latest_px: dict[str, float],
+    bars_by_ticker: dict[str, list[PriceBar]],
     cfg: PortalConfig,
     day: date,
 ) -> list[tuple[OrderIntent, str]]:
-    """Generate sell intents for positions hitting TP / SL / time exits."""
+    """Generate sell intents for positions hitting TP / SL / time exits (vol-aware)."""
     out: list[tuple[OrderIntent, str]] = []
     for p in positions:
         if p.quantity <= 0:
@@ -113,10 +136,24 @@ def _build_exit_intents(
         pnl_pct = (float(px) - float(p.avg_price)) / float(p.avg_price) if p.avg_price else 0.0
         days_held = (day - p.opened_day).days if p.opened_day else 0
 
-        if pnl_pct >= cfg.take_profit_pct:
-            reason = f"take-profit exit (+{pnl_pct:.2%})"
-        elif pnl_pct <= -cfg.stop_loss_pct:
-            reason = f"stop-loss exit ({pnl_pct:.2%})"
+        factors = compute_factors(bars=bars_by_ticker.get(p.ticker, []), news=[])
+        realized_vol = factors.realized_vol if factors else 0.015
+        tp, sl = dynamic_exit_levels(
+            realized_vol=realized_vol,
+            base_tp=cfg.take_profit_pct,
+            base_sl=cfg.stop_loss_pct,
+        )
+
+        # Also exit early if advanced model flips strongly bearish.
+        sig = generate_signal(ticker=p.ticker, bars=bars_by_ticker.get(p.ticker, []), news=[])
+        model_exit = sig.action == "sell" and sig.confidence >= 0.7 and days_held >= 1
+
+        if pnl_pct >= tp:
+            reason = f"take-profit exit (+{pnl_pct:.2%}, tp={tp:.2%}, vol={realized_vol:.3f})"
+        elif pnl_pct <= -sl:
+            reason = f"stop-loss exit ({pnl_pct:.2%}, sl={sl:.2%}, vol={realized_vol:.3f})"
+        elif model_exit:
+            reason = f"model-exit ({sig.rationale[:80]})"
         elif days_held >= cfg.max_hold_days:
             reason = f"time exit ({days_held}d, pnl={pnl_pct:.2%})"
         else:
@@ -153,7 +190,8 @@ def _ranked_buy_signals(
         sig = generate_signal(ticker=t, bars=bars, news=news)
         if sig.action == "buy" and sig.confidence >= cfg.min_confidence_to_buy:
             sigs.append(sig)
-    sigs.sort(key=lambda s: (s.confidence, s.score), reverse=True)
+    # Rank by confidence-weighted score (edge proxy)
+    sigs.sort(key=lambda s: (s.confidence * max(0.0, s.score), s.confidence, s.score), reverse=True)
     return sigs
 
 
@@ -165,24 +203,20 @@ def _allocate_budget(
     max_buys: int,
     buffer: float = 0.99,
 ) -> list[tuple[Signal, float]]:
-    """Confidence-weighted allocation of available cash across top buy signals.
-
-    A `buffer` (<1.0) is applied to the notional so that fees + slippage on fill
-    don't push the buy cost above available cash (which would cause the broker to reject it).
+    """
+    Power-allocate cash toward highest confidence × score ideas.
     """
     selected = signals[:max_buys]
     if not selected:
         return []
-    total_conf = sum(s.confidence for s in selected)
-    if total_conf <= 0:
-        return []
+    weights = [max(1e-6, (s.confidence**1.5) * max(0.05, s.score)) for s in selected]
+    total_w = sum(weights)
     out: list[tuple[Signal, float]] = []
-    for s in selected:
+    for s, w in zip(selected, weights):
         px = latest_px.get(s.ticker)
         if px is None or px <= 0:
             continue
-        weight = s.confidence / total_conf
-        notional = weight * float(cash_available) * float(buffer)
+        notional = (w / total_w) * float(cash_available) * float(buffer)
         qty = notional / float(px)
         if qty > 0:
             out.append((s, qty))
@@ -222,7 +256,8 @@ def run_daily(
 
     # Fetch data if not injected
     if bars_by_ticker is None:
-        bars_by_ticker = fetch_daily_bars(cfg.universe, lookback_days=deps.settings.default_lookback_days)
+        lookback = max(cfg.lookback_days, deps.settings.default_lookback_days)
+        bars_by_ticker = fetch_daily_bars(cfg.universe, lookback_days=lookback)
     if news_by_ticker is None:
         items: list[NewsItem] = []
         for url in cfg.rss_urls:
@@ -240,9 +275,13 @@ def run_daily(
 
     portfolio = broker.get_portfolio(latest_price_by_ticker=latest_px)
 
-    # Exits
+    # Exits (volatility-aware + model flip)
     exit_intents = _build_exit_intents(
-        positions=portfolio.positions, latest_px=latest_px, cfg=cfg, day=day
+        positions=portfolio.positions,
+        latest_px=latest_px,
+        bars_by_ticker=bars_by_ticker,
+        cfg=cfg,
+        day=day,
     )
     sell_intents: list[OrderIntent] = []
     recommendations: list[Recommendation] = []
@@ -291,13 +330,18 @@ def run_daily(
         fees = fee_model.estimate_fees(price=px, quantity=qty) + (
             (px * qty) * (deps.settings.slippage_bps / 10_000.0)
         )
+        factors = compute_factors(bars=bars_by_ticker.get(sig.ticker, []), news=news_by_ticker.get(sig.ticker, []))
+        edge = estimate_expected_edge(sig, realized_vol=factors.realized_vol if factors else None)
+        # Skip buys that don't clear costs with margin.
+        if (px * qty) * edge <= fees * 1.15:
+            continue
         intent = OrderIntent(
             ticker=sig.ticker,
             action="buy",
             quantity=qty,
             limit_price=None,
             confidence=sig.confidence,
-            expected_edge=max(0.0, sig.score) * 0.02,
+            expected_edge=edge,
             estimated_fees=fees,
         )
         buy_intents.append(intent)
@@ -309,10 +353,10 @@ def run_daily(
                 score=sig.score,
                 quantity=qty,
                 limit_price=None,
-                expected_edge=intent.expected_edge,
+                expected_edge=edge,
                 estimated_fees=fees,
                 rationale=sig.rationale,
-                reason="top-ranked buy within daily budget",
+                reason="top-ranked advanced signal within daily budget",
             )
         )
 

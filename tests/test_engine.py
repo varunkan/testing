@@ -22,17 +22,29 @@ def test_signals_and_intents_happy_path():
     )
 
     t = "AAPL"
-    bars = [
-        PriceBar(ticker=t, day=date(2026, 1, 1), open=100, high=101, low=99, close=100, volume=1),
-        PriceBar(ticker=t, day=date(2026, 1, 2), open=120, high=121, low=119, close=140, volume=1),
-    ]
+    bars = []
+    px = 100.0
+    for i in range(30):
+        px *= 1.015
+        bars.append(
+            PriceBar(
+                ticker=t,
+                day=date(2026, 1, 1 + i),
+                open=px * 0.99,
+                high=px * 1.02,
+                low=px * 0.98,
+                close=px,
+                volume=1_000_000,
+            )
+        )
     bars_by_ticker = {t: bars}
     news_by_ticker = {t: [NewsItem(title="Strong earnings beat expectations")]}
 
     sigs = build_signals(tickers=[t], price_bars_by_ticker=bars_by_ticker, news_by_ticker=news_by_ticker, deps=deps)
     assert len(sigs) == 1
     assert sigs[0].ticker == t
-    assert sigs[0].confidence >= 0.0
+    assert sigs[0].action == "buy"
+    assert sigs[0].confidence > 0.4
 
     portfolio = PortfolioSnapshot(
         as_of=datetime.now(tz=timezone.utc),
@@ -40,10 +52,10 @@ def test_signals_and_intents_happy_path():
         equity=10_000,
         positions=[],
     )
-    latest_px = {t: 140.0}
+    latest_px = {t: float(bars[-1].close)}
     intents = build_order_intents(signals=sigs, portfolio=portfolio, latest_price_by_ticker=latest_px, deps=deps)
     assert intents, "Expected at least one order intent for a strong upward move"
-    assert intents[0].action in ("buy", "sell")
+    assert intents[0].action == "buy"
     assert intents[0].quantity > 0
 
 

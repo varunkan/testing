@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="WS_AGENT_", extra="ignore")
 
     # Core behavior
-    default_lookback_days: int = Field(default=30, ge=5, le=365)
+    default_lookback_days: int = Field(default=90, ge=5, le=365)
     min_confidence_to_trade: float = Field(default=0.65, ge=0.0, le=1.0)
 
     # Execution modeling

@@ -96,12 +96,12 @@ API endpoints remain available:
 
 Each portal day:
 1. Adds the **daily budget** (e.g. $100) to deployable cash.
-2. Evaluates **exits** on existing positions: take-profit, stop-loss, and time-based exits.
-3. Ranks **buy signals** from the configured universe by confidence + edge.
-4. Allocates today's budget across the top buys (confidence-weighted, fee/slippage-buffered).
+2. Evaluates **exits** on existing positions: volatility-aware take-profit / stop-loss, **model-flip exits**, and time-based exits.
+3. Ranks **buy signals** with a multi-factor engine (momentum, trend, RSI, breakout, mean-reversion, volume, news sentiment, regime weights).
+4. Power-allocates today's budget toward the strongest confidence × score ideas (fee/slippage gated).
 5. Executes sells first (frees cash), then buys via the paper broker.
 6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).
-7. Reports **monthly progress** toward the aspirational target.
+7. Reports **monthly performance** toward the doubling goal.
 
 The monthly target defaults to **double capital this month (100% ROI)**:
 `target_profit = 1.0 × daily_budget × planned_trading_days`

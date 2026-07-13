@@ -8,6 +8,7 @@ from wealthsimple_agent.fees import FeeModel, estimate_slippage_cost
 from wealthsimple_agent.models import NewsItem, OrderIntent, PortfolioSnapshot, Signal
 from wealthsimple_agent.risk import RiskLimits, size_buy_quantity
 from wealthsimple_agent.strategy.baseline import generate_signal
+from wealthsimple_agent.strategy.advanced import estimate_expected_edge
 
 
 @dataclass(frozen=True)
@@ -75,8 +76,8 @@ def build_order_intents(
             slip = estimate_slippage_cost(price=px, quantity=qty, slippage_bps=s.slippage_bps)
             total_cost = fees + slip
 
-            # Placeholder expected edge: map score in [0,1] to a small expected return.
-            expected_return_pct = max(0.0, float(sig.score)) * 0.02
+            # Expected edge from advanced model mapping.
+            expected_return_pct = estimate_expected_edge(sig)
             expected_profit = (px * qty) * expected_return_pct
 
             if expected_profit <= (total_cost * 1.25):
@@ -112,7 +113,7 @@ def build_order_intents(
                     quantity=qty,
                     limit_price=None,
                     confidence=sig.confidence,
-                    expected_edge=max(0.0, (-float(sig.score))) * 0.02,
+                    expected_edge=estimate_expected_edge(sig),
                     estimated_fees=total_cost,
                 )
             )
