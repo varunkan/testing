@@ -363,10 +363,12 @@
         return;
       }
       const pct = (Number(d.hit_rate) * 100).toFixed(1);
+      const costPct = (Number(d.cost_adjusted_hit_rate) * 100).toFixed(1);
       const avg = (Number(d.avg_forward_return) * 100).toFixed(2);
+      const avgSignal = (Number(d.avg_signal_return) * 100).toFixed(2);
       box.innerHTML = `
         <p><span class="big">${pct}%</span> hit-rate on ${d.samples} past signals (${d.correct} correct) over ${d.horizon_days}-day horizon.</p>
-        <p>Avg forward return per signal: ${avg}%. Threshold ±${(Number(d.threshold_pct) * 100).toFixed(1)}%.</p>
+        <p>Cost-adjusted hit-rate: ${costPct}% · Avg forward return: ${avg}% · Avg signal return: ${avgSignal}% · Threshold ±${(Number(d.threshold_pct) * 100).toFixed(1)}%.</p>
         <p>${d.disclaimer}</p>
       `;
     } catch (err) {

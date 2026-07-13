@@ -8,7 +8,7 @@ class MonthlyProgress:
     """
     Performance snapshot toward an aspirational monthly goal.
 
-    Default goal = double capital deployed this month (100% ROI).
+    Default aspirational goal is set in the portal configuration (e.g. 10× capital).
     This is NOT a guarantee — markets can lose money.
     """
 

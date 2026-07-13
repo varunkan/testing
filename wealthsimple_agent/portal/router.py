@@ -75,7 +75,7 @@ def trades(year_month: str, db_path: str = str(_DEFAULT_DB)) -> list[dict]:
         return store.trades_in_month(year_month=year_month)
 
 
-@router.get("/monthly/{year_month}", summary="Monthly performance vs double-money (or custom) target")
+@router.get("/monthly/{year_month}", summary="Monthly performance vs aspirational target")
 def monthly(
     year_month: str,
     db_path: str = str(_DEFAULT_DB),
@@ -187,5 +187,4 @@ def accuracy(
         threshold_pct=threshold_pct,
         min_lookback=40,
     )
-    d = rep.__dict__
-    return d
+    return rep.__dict__

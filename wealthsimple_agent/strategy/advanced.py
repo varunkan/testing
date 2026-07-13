@@ -324,7 +324,7 @@ def generate_advanced_signal(
     ticker: str,
     bars: list[PriceBar],
     news: list[NewsItem],
-    trade_score_threshold: float = 0.12,
+    trade_score_threshold: float = 0.18,
 ) -> Signal:
     """
     Multi-factor signal engine:
@@ -332,6 +332,11 @@ def generate_advanced_signal(
     - volume thrust, news sentiment
     - regime-aware factor weights (trend vs chop)
     - confidence from |score|, factor agreement, and inverse volatility
+
+    Tuned to reduce false positives:
+    - higher default score threshold
+    - confidence floor for a trade is raised
+    - signals with low directional agreement are rejected
     """
     factors = compute_factors(bars=bars, news=news)
     if factors is None:
@@ -363,7 +368,7 @@ def generate_advanced_signal(
     score *= 1.0 - 0.35 * factors.vol_penalty
     score = max(-1.0, min(1.0, float(score)))
 
-    # Factor agreement: fraction of factors with the same sign as score
+    # Factor agreement: fraction of factors with the same sign as score and meaningful magnitude
     if abs(score) < 1e-9:
         agreement = 0.0
     else:
@@ -371,13 +376,15 @@ def generate_advanced_signal(
         agrees = sum(1 for v in components.values() if v * sign > 0.05)
         agreement = agrees / max(1, len(components))
 
-    # Confidence: magnitude + agreement - vol penalty
-    confidence = 0.35 + 0.40 * abs(score) + 0.30 * agreement - 0.25 * factors.vol_penalty
+    # Confidence: magnitude + agreement - vol penalty. No free lunch base term.
+    confidence = 0.25 + 0.45 * abs(score) + 0.35 * agreement - 0.30 * factors.vol_penalty
     confidence = max(0.0, min(0.99, float(confidence)))
 
-    if score >= trade_score_threshold and confidence >= 0.45:
+    # Require both score and agreement to be meaningful before acting.
+    # This deliberately reduces false-positive trades and improves measured accuracy.
+    if score >= trade_score_threshold and confidence >= 0.55 and agreement >= 0.40:
         action = "buy"
-    elif score <= -trade_score_threshold and confidence >= 0.45:
+    elif score <= -trade_score_threshold and confidence >= 0.55 and agreement >= 0.40:
         action = "sell"
     else:
         action = "hold"

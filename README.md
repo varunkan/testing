@@ -16,6 +16,8 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 - Run **paper trading** and a simple **daily-bar backtest**
 - Export order intents for manual execution
 - Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages vol-aware exits (TP/SL/model-flip/time), and tracks **monthly performance toward an aspirational 10× goal**
+- Browse curated **NASDAQ-100 + TSX-60** universe presets (`@nasdaq100`, `@tsx60`, `@broad`) or provide your own tickers
+- Measure the signal engine's **historical hit-rate** per ticker via the API / UI accuracy panel
 - Use the **Forge Desk web portal** at `/` — morning tickets, budget, monthly progress in the browser
 - Optional: SwiftUI sources under `ios/` (not required for the web portal)
 
@@ -25,6 +27,8 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 python3 -m venv .venv
 source .venv/bin/activate
 pip3 install -r requirements.txt
+# or install the package in editable mode
+pip3 install -e .
 ```
 
 ## Quickstart (CLI)
@@ -74,11 +78,11 @@ uvicorn wealthsimple_agent.api.main:app --reload --host 0.0.0.0 --port 8000
 
 Open **http://127.0.0.1:8000/** — the Forge Desk web portal:
 
-1. Set daily budget (e.g. $100) and monthly goal (default **2×**)
+1. Set daily budget (e.g. $100) and monthly goal (default **10×**)
 2. Click **Run morning session** (recommendations + automatic paper fills for exits/buys)
 3. Use **Test trade desk** to place manual paper buys/sells, view portfolio & fills
 4. Open a morning ticket → **Execute test trade** (paper) or mark for manual brokerage placement
-5. Track monthly performance toward the doubling goal
+5. Track monthly performance toward the aspirational goal
 
 API endpoints remain available:
 - `GET /health`
@@ -101,13 +105,15 @@ Each portal day:
 4. Power-allocates today's budget toward the strongest confidence × score ideas (fee/slippage gated).
 5. Executes sells first (frees cash), then buys via the paper broker.
 6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).
-7. Reports **monthly performance** toward the doubling goal.
+7. Reports **monthly performance** toward the aspirational goal.
 
 The monthly goal defaults to **10× capital this month (1000% ROI)**:
 `target_profit = 10.0 × daily_budget × planned_trading_days`
 (e.g. $100 × 21 days = $2,100 capital → aim for +$21,000 profit).
 
 **This goal is extremely aspirational and not guaranteed.**
+
+**On 99.99% accuracy:** No market model can reliably predict short-term price moves with 99.99% accuracy. The engine includes a transparent, historical hit-rate tracker so you can see its measured accuracy on past data rather than taking claims on faith. The best realistic goal is to tilt the odds slightly in your favor while managing risk and costs.
 
 ## Safety / important notes
 

@@ -7,38 +7,44 @@ Why curated and not "all tickers":
 - NASDAQ lists ~3,000+ and TSX ~1,500+ symbols. Pulling live data for all of them
   every day hits provider rate limits and is mostly illiquid noise.
 - These presets focus on large, liquid, tradeable names that actually move on news.
+- Users can still pass their own tickers (e.g. ["AAPL", "TSLA", "SHOP.TO"]) to override.
 
 TSX tickers use the yfinance ".TO" suffix (e.g. RY.TO = Royal Bank of Canada).
+Tickers are current as of mid-2024; index constituents change over time and may be
+updated by the user through the `universe` configuration.
 """
 
+# NASDAQ-100 / large liquid NASDAQ-listed names (no duplicates)
 NASDAQ_100: list[str] = [
-    "AAPL", "MSFT", "AMZN", "NVDA", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "PEP",
-    "COST", "ADBE", "NFLX", "AMD", "INTC", "CSCO", "TMUS", "COMS", "TXN", "QCOM",
-    "AMGN", "HON", "ISRG", "BKNG", "AMAT", "INTU", "ADP", "CME", "CSX", "GILD",
-    "MU", "MDLZ", "ADSK", "REGN", "PANW", "KLAC", "SNPS", "ORLY", "VRTX", "LRCX",
-    "ADI", "MRVL", "CDNS", "ASML", "ABNB", "MELI", "PYPL", "CRWD", "MAR", "MRNA",
-    "CHTR", "MNST", "NXPI", "FTNT", "PCAR", "KDP", "WDAY", "LULU", "ROST", "CTAS",
-    "ODFL", "KDP", "DLTR", "CPRT", "MCHP", "AEP", "AZN", "TTWO", "FAST", "BIIB",
-    "EXC", "XEL", "SBUX", "EA", "CTSH", "VRSK", "WBD", "DLTR", "CEG", "BKR",
-    "FANG", "DXCM", "ZS", "GFS", "ILMN", "DDOG", "IDXX", "ANET", "TEAM", "MRVL",
-    "SIRI", "MIDD", "MDB", "NET", "SPLK", "SNPS", "CDW", "GEN", "VXUS", "WST",
-    "SOFI", "ARM", "DASH", "SHOP", "O",
+    "AAPL", "ABNB", "ADBE", "ADI", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN",
+    "AMZN", "ANSS", "APP", "ARM", "ASML", "AVGO", "AZN", "BIIB", "BKNG", "BKR",
+    "CCEP", "CDNS", "CDW", "CEG", "CHTR", "CMCSA", "COST", "CPRT", "CRWD", "CSCO",
+    "CSGP", "CSX", "CTAS", "CTSH", "DASH", "DDOG", "DXCM", "EA", "EXC", "FAST",
+    "FISV", "FTNT", "GEHC", "GFS", "GILD", "GOOG", "GOOGL", "HON", "IDXX", "ILMN",
+    "INTC", "INTU", "ISRG", "KDP", "KLAC", "LIN", "LRCX", "LULU", "MAR", "MCHP",
+    "MDB", "MDLZ", "MELI", "META", "MIDD", "MNST", "MRNA", "MRVL", "MSFT", "MU",
+    "NFLX", "NVDA", "NXPI", "ODFL", "ORLY", "PANW", "PAYX", "PCAR", "PEP", "PYPL",
+    "QCOM", "REGN", "ROP", "ROST", "SBUX", "SIRI", "SNPS", "SOFI", "SPLK", "TEAM",
+    "TMUS", "TSLA", "TTWO", "TXN", "VRSK", "VRSN", "VRTX", "WBD", "WDC", "WDAY",
+    "WST", "XEL", "ZS",
 ]
 
 # S&P/TSX 60 (Canada's largest companies), yfinance uses .TO suffix
+# List cleaned to remove duplicates and non-TSX symbols.
 TSX_60: list[str] = [
     "RY.TO", "TD.TO", "BNS.TO", "BMO.TO", "CM.TO", "NA.TO",
-    "ENB.TO", "TRP.TO", "CNQ.TO", "SU.TO", "IMO.TO", "CVE.TO",
-    "CNR.TO", "CP.TO", "L.TO", "MFC.TO", "SLF.TO", "POW.TO",
-    "BCE.TO", "T.TO", "RCI-B.TO", "ABX.TO", "AEM.TO", "K.TO",
-    "FNV.TO", "NTR.TO", "POT.TO", "WCN.TO", "WCN.TO",
-    "SHOP.TO", "CSU.TO", "DOL.TO", "ATD.TO", "MG.TO",
-    "CNR.TO", "CP.TO", "FTS.TO", "EMA.TO", "H.TO",
-    "BHC.TO", "TSCO.TO", "GIB.A.TO", "OTEX.TO", "SAP.TO",
-    "DHI.TO", "TFII.TO", "TIH.TO", "CTC.A.TO",
-    "CCL-B.TO", "MRU.TO", "EMP-A.TO", "L.TO",
-    "QSR.TO", "WN.TO", "DOL.TO", "RS.TO", "LB.TO",
-    "TGZ.TO", "HVL.TO", "ECN.TO", "BAM.TO",
+    "ENB.TO", "TRP.TO", "CNQ.TO", "SU.TO", "IMO.TO", "CVE.TO", "TOU.TO", "PPL.TO",
+    "CNR.TO", "CP.TO", "WCN.TO", "WSP.TO", "TFII.TO", "TIH.TO", "CCL-B.TO",
+    "MFC.TO", "SLF.TO", "POW.TO", "GWO.TO", "IAG.TO", "IFC.TO",
+    "BCE.TO", "T.TO", "RCI-B.TO", "QBR-B.TO",
+    "ABX.TO", "AEM.TO", "K.TO", "FNV.TO", "WPM.TO", "NTR.TO", "LUN.TO",
+    "SHOP.TO", "CSU.TO", "DOL.TO", "ATD.TO", "MG.TO", "GIB.A.TO", "OTEX.TO", "KXS.TO", "DOO.TO",
+    "FTS.TO", "EMA.TO", "H.TO", "CU.TO",
+    "BAM-A.TO", "BIP-UN.TO",
+    "L.TO", "MRU.TO", "EMP-A.TO", "CTC.A.TO", "BBD-B.TO",
+    "QSR.TO", "WN.TO", "SAP.TO",
+    "REI-UN.TO", "HR-UN.TO",
+    "ECN.TO",
 ]
 
 # Broad liquid universe spanning both exchanges (used by default "broad" preset)

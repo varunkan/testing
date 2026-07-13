@@ -18,20 +18,17 @@ def _get(row, key: str, ticker: str | None = None) -> float:
         return float(row[key])
     except (KeyError, TypeError, ValueError):
         pass
-    # Tuple-style lookup for flat series with MultiIndex labels
-    try:
-        return float(row[(key,)])
-    except (KeyError, TypeError, ValueError):
-        pass
-    # Fallback: scan index for a match starting with key
+    # Fallback: scan index for an exact match (string or tuple containing key)
     idx = list(row.index) if hasattr(row, "index") else []
     for label in idx:
-        s = str(label)
-        if s == key or s.startswith((key + ",", key + ",'" if False else key)):
-            try:
+        try:
+            if isinstance(label, tuple):
+                if label and label[0] == key:
+                    return float(row[label])
+            elif label == key:
                 return float(row[label])
-            except (TypeError, ValueError):
-                continue
+        except (TypeError, ValueError):
+            continue
     raise KeyError(key)
 
 
