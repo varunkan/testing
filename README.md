@@ -74,18 +74,23 @@ uvicorn wealthsimple_agent.api.main:app --reload --host 0.0.0.0 --port 8000
 
 Open **http://127.0.0.1:8000/** — the Forge Desk web portal:
 
-1. Set daily budget (e.g. $100) and monthly target %
-2. Click **Run morning session**
-3. Review buy/sell tickets, open a ticket, approve for manual placement
-4. Track monthly progress toward the aspirational target
+1. Set daily budget (e.g. $100) and monthly goal (default **2×**)
+2. Click **Run morning session** (recommendations + automatic paper fills for exits/buys)
+3. Use **Test trade desk** to place manual paper buys/sells, view portfolio & fills
+4. Open a morning ticket → **Execute test trade** (paper) or mark for manual brokerage placement
+5. Track monthly performance toward the doubling goal
 
 API endpoints remain available:
 - `GET /health`
 - `POST /signals`
 - `POST /portal/daily`
+- `GET /portal/portfolio` — paper portfolio
+- `POST /portal/test-trade` — execute one paper trade
+- `POST /portal/paper/reset` — reset paper cash/positions
+- `GET /portal/trades` — recent paper fills
 - `GET /portal/recommendations/{day}`
 - `GET /portal/trades/{year_month}`
-- `GET /portal/monthly/{year_month}`
+- `GET /portal/monthly/{year_month}` / `GET /portal/performance/{year_month}`
 
 ## How the daily portal works
 

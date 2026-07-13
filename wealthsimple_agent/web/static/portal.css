@@ -168,6 +168,87 @@ body {
   background: rgba(18, 97, 92, 0.06);
 }
 
+.ghost.full {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+
+.field select {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(82, 102, 105, 0.22);
+  background: #fff;
+}
+
+.manual-trade {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(199, 230, 225, 0.95);
+}
+
+.manual-trade h3,
+.history-title {
+  margin: 0 0 0.75rem;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+}
+
+.history-title {
+  margin-top: 1.35rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.positions,
+.trades-list {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pos-row,
+.trade-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(199, 230, 225, 0.9);
+  font-size: 0.95rem;
+}
+
+.pos-row strong,
+.trade-row strong {
+  font-weight: 700;
+}
+
+.trade-row .side-buy {
+  color: var(--buy);
+  font-weight: 700;
+}
+
+.trade-row .side-sell {
+  color: var(--sell);
+  font-weight: 700;
+}
+
+.paper-stats {
+  margin-top: 0.85rem;
+}
+
 /* —— Desk —— */
 .desk {
   width: min(920px, 100%);

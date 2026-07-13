@@ -4,12 +4,18 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 from wealthsimple_agent.portal.runner import DEFAULT_UNIVERSE, PortalConfig, run_daily
 from wealthsimple_agent.portal.store import Store
-
+from wealthsimple_agent.portal.paper_trading import (
+    ResetPaperRequest,
+    PaperTradeRequest,
+    execute_test_trade,
+    portfolio_snapshot,
+    reset_paper_account,
+)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
@@ -112,3 +118,34 @@ def performance(
     target_pct: float = 1.0,
 ) -> dict:
     return monthly(year_month, db_path=db_path, daily_budget=daily_budget, target_pct=target_pct)
+
+
+# ---- Paper / test trading ----
+
+@router.get("/portfolio", summary="Current paper (test) portfolio")
+def get_portfolio(db_path: str = str(_DEFAULT_DB)) -> dict:
+    with Store(db_path) as store:
+        return portfolio_snapshot(store)
+
+
+@router.post("/test-trade", summary="Execute a single paper/test trade")
+def test_trade(req: PaperTradeRequest) -> dict:
+    try:
+        with Store(req.db_path) as store:
+            return execute_test_trade(store, req)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/paper/reset", summary="Reset paper account cash/positions")
+def paper_reset(req: ResetPaperRequest = Body(default_factory=ResetPaperRequest)) -> dict:
+    with Store(req.db_path) as store:
+        return reset_paper_account(store, starting_cash=req.starting_cash)
+
+
+@router.get("/trades", summary="Recent paper trades (optional month filter)")
+def trades_recent(year_month: Optional[str] = None, db_path: str = str(_DEFAULT_DB), limit: int = 50) -> list[dict]:
+    ym = year_month or date.today().strftime("%Y-%m")
+    with Store(db_path) as store:
+        rows = store.trades_in_month(year_month=ym)
+    return rows[-max(1, min(limit, 500)) :]

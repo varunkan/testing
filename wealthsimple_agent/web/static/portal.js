@@ -14,6 +14,7 @@
   const dialog = $("ticket-dialog");
   const approvedMsg = $("approved-msg");
   const approveBtn = $("approve-ticket");
+  const testTradeTicketBtn = $("test-trade-ticket");
 
   let currentTicket = null;
 
@@ -99,6 +100,42 @@
     $("stat-cash").textContent = money(p.cash || 0);
   }
 
+  function renderPortfolio(p) {
+    if (!p) return;
+    $("paper-cash").textContent = money(p.cash);
+    $("paper-equity").textContent = money(p.equity);
+    $("paper-realized").textContent = money(p.realized_pnl);
+    const box = $("positions-list");
+    const positions = p.positions || [];
+    if (!positions.length) {
+      box.innerHTML = `<p class="empty">No open paper positions.</p>`;
+      return;
+    }
+    box.innerHTML = positions
+      .map((pos) => {
+        const mark = (p.marks && p.marks[pos.ticker]) || pos.avg_price;
+        return `<div class="pos-row"><strong>${pos.ticker}</strong><span>${Number(pos.quantity).toFixed(4)} @ ${money(pos.avg_price)} · mark ${money(mark)}</span></div>`;
+      })
+      .join("");
+  }
+
+  function renderTrades(trades) {
+    const box = $("trades-list");
+    if (!trades || !trades.length) {
+      box.innerHTML = `<p class="empty">No paper fills yet.</p>`;
+      return;
+    }
+    const rows = [...trades].reverse().slice(0, 20);
+    box.innerHTML = rows
+      .map((t) => {
+        const sideClass = String(t.side).toLowerCase() === "buy" ? "side-buy" : "side-sell";
+        const pnl =
+          t.pnl == null ? "" : ` · P&L ${Number(t.pnl) >= 0 ? "+" : ""}${money(t.pnl)}`;
+        return `<div class="trade-row"><span><span class="${sideClass}">${String(t.side).toUpperCase()}</span> <strong>${t.ticker}</strong></span><span>${Number(t.qty).toFixed(4)} @ ${money(t.px)}${pnl}</span></div>`;
+      })
+      .join("");
+  }
+
   function renderRecommendations(report) {
     recsList.innerHTML = "";
     if (!report || !report.recommendations || !report.recommendations.length) {
@@ -131,6 +168,7 @@
     currentTicket = rec;
     approvedMsg.hidden = true;
     approveBtn.hidden = false;
+    testTradeTicketBtn.hidden = false;
     const isBuy = String(rec.action).toLowerCase() === "buy";
     $("ticket-action").textContent = String(rec.action).toUpperCase();
     $("ticket-action").className = `badge ${isBuy ? "" : "sell"}`;
@@ -149,9 +187,35 @@
     }
   }
 
+  async function refreshPaperViews() {
+    const [portfolioRes, tradesRes, perfRes] = await Promise.all([
+      fetch("/portal/portfolio"),
+      fetch("/portal/trades"),
+      fetch(
+        `/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`
+      ),
+    ]);
+    if (portfolioRes.ok) renderPortfolio(await portfolioRes.json());
+    if (tradesRes.ok) renderTrades(await tradesRes.json());
+    if (perfRes.ok) renderProgress(await perfRes.json());
+  }
+
+  async function executeTestTrade(payload) {
+    const res = await fetch("/portal/test-trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.detail || JSON.stringify(body) || `HTTP ${res.status}`);
+    }
+    return body;
+  }
+
   async function runMorningSession() {
     runDayBtn.disabled = true;
-    setStatus("Researching morning ideas…");
+    setStatus("Researching morning ideas + paper fills…");
     try {
       const res = await fetch("/portal/daily", {
         method: "POST",
@@ -165,7 +229,8 @@
       const report = await res.json();
       renderRecommendations(report);
       renderProgress(report.monthly_progress);
-      setStatus("Morning session complete — performance updated.");
+      await refreshPaperViews();
+      setStatus("Morning session complete — paper fills & performance updated.");
       $("desk").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       setStatus(err.message || String(err), true);
@@ -178,16 +243,8 @@
     refreshMonthBtn.disabled = true;
     setStatus("Refreshing performance…");
     try {
-      const ym = new Date().toISOString().slice(0, 7);
-      const budget = Number(dailyBudget.value) || 100;
-      const pct = targetPct();
-      const res = await fetch(
-        `/portal/performance/${ym}?daily_budget=${encodeURIComponent(budget)}&target_pct=${encodeURIComponent(pct)}`
-      );
-      if (!res.ok) throw new Error(await res.text());
-      const progress = await res.json();
-      renderProgress(progress);
-      setStatus("Performance updated.");
+      await refreshPaperViews();
+      setStatus("Performance & paper portfolio updated.");
     } catch (err) {
       setStatus(err.message || String(err), true);
     } finally {
@@ -207,12 +264,86 @@
   approveBtn.addEventListener("click", (e) => {
     e.preventDefault();
     approvedMsg.hidden = false;
-    approveBtn.hidden = true;
+    approvedMsg.textContent = "Marked for manual placement.";
     if (currentTicket) {
-      setStatus(`Approved ${String(currentTicket.action).toUpperCase()} ${currentTicket.ticker} for manual placement.`);
+      setStatus(`Marked ${String(currentTicket.action).toUpperCase()} ${currentTicket.ticker} for manual placement.`);
+    }
+  });
+
+  testTradeTicketBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!currentTicket) return;
+    testTradeTicketBtn.disabled = true;
+    try {
+      const result = await executeTestTrade({
+        ticker: currentTicket.ticker,
+        action: String(currentTicket.action).toLowerCase(),
+        quantity: Number(currentTicket.quantity),
+        fund_if_needed: true,
+      });
+      approvedMsg.hidden = false;
+      approvedMsg.textContent = `Paper filled ${String(result.trade.side).toUpperCase()} ${result.trade.ticker}.`;
+      setStatus(`Test trade filled: ${String(result.trade.side).toUpperCase()} ${result.trade.ticker} @ ${money(result.trade.px)}`);
+      await refreshPaperViews();
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+      approvedMsg.hidden = false;
+      approvedMsg.textContent = err.message || String(err);
+    } finally {
+      testTradeTicketBtn.disabled = false;
+    }
+  });
+
+  $("manual-trade-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const ticker = $("tt-ticker").value.trim().toUpperCase();
+    const action = $("tt-side").value;
+    const quantity = Number($("tt-qty").value);
+    const priceRaw = $("tt-price").value;
+    const payload = {
+      ticker,
+      action,
+      quantity,
+      fund_if_needed: $("tt-fund").checked,
+    };
+    if (priceRaw) payload.price = Number(priceRaw);
+    setStatus(`Submitting test ${action.toUpperCase()} ${ticker}…`);
+    try {
+      const result = await executeTestTrade(payload);
+      setStatus(`Test trade filled: ${String(result.trade.side).toUpperCase()} ${result.trade.ticker} @ ${money(result.trade.px)}`);
+      await refreshPaperViews();
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    }
+  });
+
+  $("refresh-portfolio").addEventListener("click", async () => {
+    try {
+      await refreshPaperViews();
+      setStatus("Paper portfolio refreshed.");
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    }
+  });
+
+  $("reset-paper").addEventListener("click", async () => {
+    const starting = Number(dailyBudget.value) || 1000;
+    if (!window.confirm(`Reset paper account to $${starting.toFixed(0)} cash and clear positions?`)) return;
+    try {
+      const res = await fetch("/portal/paper/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starting_cash: starting }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await refreshPaperViews();
+      setStatus(`Paper account reset to ${money(starting)}.`);
+    } catch (err) {
+      setStatus(err.message || String(err), true);
     }
   });
 
   updateTargetHint();
   recsList.innerHTML = `<p class="empty">Run a morning session to generate tickets.</p>`;
+  refreshPaperViews().catch(() => {});
 })();

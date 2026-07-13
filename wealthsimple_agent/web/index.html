@@ -22,7 +22,7 @@
     </div>
     <p class="brand">Forge Desk</p>
     <h1 class="hero-headline">Aim to double this month. Track every dollar.</h1>
-    <p class="hero-sub">Morning buy/sell tickets on a fixed daily budget — with ROI and doubling progress after fees.</p>
+    <p class="hero-sub">Paper-test buys and sells on a fixed daily budget — with ROI and doubling progress after fees.</p>
     <button type="button" class="cta" id="scroll-to-desk">Open morning desk</button>
   </header>
 
@@ -84,13 +84,69 @@
     <section class="panel recs-panel" aria-labelledby="recs-heading">
       <div class="recs-header">
         <h2 id="recs-heading">Morning tickets</h2>
-        <p class="panel-sub" id="recs-day">Run a session to see buy/sell recommendations.</p>
+        <p class="panel-sub" id="recs-day">Run a session for recommendations. The session also paper-fills exits/buys automatically.</p>
       </div>
       <div id="recs-list" class="recs-list"></div>
     </section>
 
+    <section class="panel paper-panel" aria-labelledby="paper-heading">
+      <div class="recs-header">
+        <h2 id="paper-heading">Test trade desk</h2>
+        <p class="panel-sub">Paper account only — practice fills with fees &amp; slippage. No live brokerage orders.</p>
+      </div>
+
+      <div class="stats-grid paper-stats">
+        <div class="stat"><span class="stat-label">Paper cash</span><strong id="paper-cash">$0</strong></div>
+        <div class="stat"><span class="stat-label">Paper equity</span><strong id="paper-equity">$0</strong></div>
+        <div class="stat"><span class="stat-label">Realized P&amp;L</span><strong id="paper-realized">$0</strong></div>
+      </div>
+
+      <div class="positions" id="positions-list">
+        <p class="empty">No open paper positions.</p>
+      </div>
+
+      <form id="manual-trade-form" class="manual-trade">
+        <h3>Place a test trade</h3>
+        <div class="goal-grid">
+          <label class="field">
+            <span>Ticker</span>
+            <input type="text" id="tt-ticker" value="AAPL" required />
+          </label>
+          <label class="field">
+            <span>Side</span>
+            <select id="tt-side">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Quantity</span>
+            <input type="number" id="tt-qty" min="0.0001" step="0.0001" value="0.1" required />
+          </label>
+          <label class="field">
+            <span>Price override (optional)</span>
+            <input type="number" id="tt-price" min="0.01" step="0.01" placeholder="Live quote" />
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="tt-fund" checked />
+          Auto-fund paper cash if buy needs more money
+        </label>
+        <div class="actions">
+          <button type="submit" class="cta amber">Execute test trade</button>
+          <button type="button" class="ghost" id="refresh-portfolio">Refresh portfolio</button>
+          <button type="button" class="ghost" id="reset-paper">Reset paper account</button>
+        </div>
+      </form>
+
+      <h3 class="history-title">Recent test fills</h3>
+      <div id="trades-list" class="trades-list">
+        <p class="empty">No paper fills yet.</p>
+      </div>
+    </section>
+
     <section class="panel disclaimer-panel">
-      <p>Doubling every month is an <strong>extremely aggressive</strong> aspirational goal and is not realistic for most strategies. Forge Desk tracks performance honestly so you can see what paper trading actually does. Tickets are for <strong>manual</strong> placement — not auto-trading on Wealthsimple. Not financial advice.</p>
+      <p><strong>Test trading is paper only.</strong> Doubling every month is an extremely aggressive aspirational goal. Forge Desk does not place live orders on Wealthsimple. Not financial advice.</p>
     </section>
   </main>
 
@@ -104,9 +160,10 @@
       <p id="ticket-reason" class="ticket-reason"></p>
       <dl class="ticket-metrics" id="ticket-metrics"></dl>
       <p id="ticket-rationale" class="ticket-rationale"></p>
-      <p class="ticket-note">Approve marks this ticket for manual placement in your brokerage app.</p>
-      <button type="submit" class="cta amber" id="approve-ticket" value="approve">Approve ticket</button>
-      <p class="approved-msg" id="approved-msg" hidden>Marked for manual placement.</p>
+      <p class="ticket-note">Execute as a paper fill on Forge Desk, or mark for manual placement in your brokerage app.</p>
+      <button type="button" class="cta amber" id="test-trade-ticket">Execute test trade</button>
+      <button type="button" class="ghost full" id="approve-ticket">Mark for manual placement</button>
+      <p class="approved-msg" id="approved-msg" hidden>Done.</p>
     </form>
   </dialog>
 
