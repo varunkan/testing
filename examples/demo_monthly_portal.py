@@ -71,11 +71,14 @@ def main() -> None:
     print(f"=== Portal demo: ${cfg.daily_budget}/day, 10× goal ({cfg.monthly_target_pct:.0%}) ===\n")
 
     with Store(db) as store:
+        user = store.create_user(username="demo_user", password="demo123")
+        user_id = user["id"]
         for _ in range(TRADING_DAYS):
             bars_by_ticker = {
                 t: synth_bars(t, day, drift=drifts[t], start_price=starts[t]) for t in UNIVERSE
             }
             report = run_daily(
+                user_id=user_id,
                 cfg=cfg,
                 store=store,
                 day=day,
@@ -93,8 +96,8 @@ def main() -> None:
             day += timedelta(days=1)
 
         year_month = START.strftime("%Y-%m")
-        realized = store.realized_pnl_in_month(year_month=year_month)
-        days_run = store.days_run_in_month(year_month=year_month)
+        realized = store.realized_pnl_in_month(user_id=user_id, year_month=year_month)
+        days_run = store.days_run_in_month(user_id=user_id, year_month=year_month)
 
     target = cfg.monthly_target_pct * cfg.daily_budget * cfg.planned_trading_days_per_month
     print("\n=== Final performance (10× goal) ===")

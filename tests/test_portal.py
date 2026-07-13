@@ -26,6 +26,11 @@ def _bars(ticker: str, start: date, days: int, closes: list[float]) -> list[Pric
     return out
 
 
+def _user_id(store: Store) -> int:
+    user = store.create_user(username=f"tester_{date.today().isoformat()}", password="password123")
+    return user["id"]
+
+
 def test_monthly_progress_math():
     # Double goal: 100% of (100*21) = $2100; $420 realized => 20% of goal, ROI on $700 capital = 60%
     p = compute_monthly_progress(
@@ -71,7 +76,9 @@ def test_run_daily_persists_and_progresses(tmp_path: Path):
     news = {"AAPL": [NewsItem(title="Apple earnings beat expectations")], "MSFT": []}
 
     with Store(db) as store:
+        user_id = _user_id(store)
         report = run_daily(
+            user_id=user_id,
             cfg=cfg,
             store=store,
             day=day,
@@ -95,6 +102,7 @@ def test_run_daily_persists_and_progresses(tmp_path: Path):
     # Persistence: a second run should reload broker state (no crash, fresh budget added).
     with Store(db) as store:
         report2 = run_daily(
+            user_id=user_id,
             cfg=cfg,
             store=store,
             day=day + timedelta(days=1),
@@ -124,7 +132,15 @@ def test_take_profit_exit_triggers_sell(tmp_path: Path):
         "AAPL": _bars("AAPL", day0 - timedelta(days=10), 11, [100 + i * 4 for i in range(11)]),
     }
     with Store(db) as store:
-        run_daily(cfg=cfg, store=store, day=day0, bars_by_ticker=bars_day0, news_by_ticker={"AAPL": []})
+        user_id = _user_id(store)
+        run_daily(
+            user_id=user_id,
+            cfg=cfg,
+            store=store,
+            day=day0,
+            bars_by_ticker=bars_day0,
+            news_by_ticker={"AAPL": []},
+        )
 
     # Day 1: price jumps well above cost basis -> take-profit exit
     day1 = day0 + timedelta(days=1)
@@ -132,10 +148,44 @@ def test_take_profit_exit_triggers_sell(tmp_path: Path):
         "AAPL": _bars("AAPL", day0 - timedelta(days=10), 12, [100 + i * 4 for i in range(11)] + [160]),
     }
     with Store(db) as store:
-        report = run_daily(cfg=cfg, store=store, day=day1, bars_by_ticker=bars_day1, news_by_ticker={"AAPL": []})
+        report = run_daily(
+            user_id=user_id,
+            cfg=cfg,
+            store=store,
+            day=day1,
+            bars_by_ticker=bars_day1,
+            news_by_ticker={"AAPL": []},
+        )
 
     sells = [r for r in report.recommendations if r.action == "sell"]
     assert sells, "Expected a take-profit sell recommendation"
     assert "take-profit" in sells[0].reason
     # Realized P&L should be positive and reflected in monthly progress.
     assert report.monthly_progress["realized_pnl"] > 0.0
+
+
+def test_user_accounts_and_persistence(tmp_path: Path):
+    db = tmp_path / "portal.db"
+    with Store(db) as store:
+        u1 = store.create_user(username="alice", password="secret123")
+        u2 = store.create_user(username="bob", password="secret456")
+
+        # Each user should have independent broker state.
+        store.ensure_broker_state(user_id=u1["id"], starting_cash=1000.0)
+        store.ensure_broker_state(user_id=u2["id"], starting_cash=500.0)
+
+        s1 = store.load_broker_state(user_id=u1["id"])
+        s2 = store.load_broker_state(user_id=u2["id"])
+        assert s1["cash"] == 1000.0
+        assert s2["cash"] == 500.0
+
+        # Auth should work
+        logged_in = store.authenticate_user(username="alice", password="secret123")
+        assert logged_in["api_key"] == u1["api_key"]
+
+        # Wrong password should fail
+        try:
+            store.authenticate_user(username="alice", password="wrong")
+            assert False, "expected auth failure"
+        except ValueError:
+            pass

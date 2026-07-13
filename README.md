@@ -104,19 +104,32 @@ API endpoints remain available:
 - `GET /portal/recommendations/{day}`
 - `GET /portal/trades/{year_month}`
 - `GET /portal/monthly/{year_month}` / `GET /portal/performance/{year_month}`
+- `POST /portal/auth/signup` — create account
+- `POST /portal/auth/login` — log in, receive API key
+- `GET /portal/auth/me` — current user info
+- `POST /portal/auth/auto-invest` — toggle auto-invest
+- `POST /portal/daily` — run one day for the authenticated user
+- `POST /portal/daily/auto` — auto-run one day for the authenticated user
+- `GET /portal/daily-report/{day}` — recommendations + trades + realized P&L for a day
 - `GET /portal/accuracy/{ticker}` — measured historical hit-rate
 - `GET /portal/personas/{ticker}` — analyst & market-driver persona opinions
 
 ## How the daily portal works
 
 Each portal day:
-1. Adds the **daily budget** (e.g. $100) to deployable cash.
-2. Evaluates **exits** on existing positions: volatility-aware take-profit / stop-loss, **model-flip exits**, and time-based exits.
-3. Ranks **buy signals** with a multi-factor engine + an **Analyst & Market-Driver Council** (value, growth, quality, momentum, sector analysts, retail, quant, institutional, activist personas) that votes and blends into a consensus signal.
-4. Power-allocates today's budget toward the strongest confidence × score ideas (fee/slippage gated).
-5. Executes sells first (frees cash), then buys via the paper broker.
-6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).
-7. Reports **monthly performance** toward the aspirational goal.
+1. Users sign up / log in to get their own **paper portfolio** and API key.
+2. The agent adds the **daily budget** (e.g. $100) to the user's deployable cash.
+3. Evaluates **exits** on existing positions: volatility-aware take-profit / stop-loss, **model-flip exits**, and time-based exits.
+4. Ranks **buy signals** with a multi-factor engine + an **Analyst & Market-Driver Council** (value, growth, quality, momentum, sector analysts, retail, quant, institutional, activist personas) that votes and blends into a consensus signal.
+5. Power-allocates today's budget toward the strongest confidence × score ideas (fee/slippage gated).
+6. Executes sells first (frees cash), then buys via the paper broker at the current market close/timestamp.
+7. Persists each user's broker state, recommendations, and trades to SQLite (`portal.db`) with full **execution timestamps**.
+8. Reports **daily P&L** and **monthly performance** toward the user's aspirational goal.
+
+Users can also:
+- Manually buy/sell via the **Test trade desk**.
+- Toggle **Auto-invest** so the agent runs on their behalf every day.
+- View a **daily report** showing exactly which recommendations, trades, and P&L occurred on any given day.
 
 The monthly goal defaults to **10× capital this month (1000% ROI)**:
 `target_profit = 10.0 × daily_budget × planned_trading_days`
