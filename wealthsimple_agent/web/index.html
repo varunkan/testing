@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Forge Desk — Morning recommendations</title>
+  <title>Forge Desk — Double &amp; track</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -12,7 +12,6 @@
 <body>
   <div class="atmosphere" aria-hidden="true"></div>
 
-  <!-- Hero: brand first, one headline, one sentence, one CTA -->
   <header class="hero" id="hero">
     <div class="hero-mark" aria-hidden="true">
       <span class="pulse-ring"></span>
@@ -22,15 +21,15 @@
       </svg>
     </div>
     <p class="brand">Forge Desk</p>
-    <h1 class="hero-headline">Morning recommendations. Fixed budget. Clear exits.</h1>
-    <p class="hero-sub">Each day the agent ranks buys and sells with confidence and fee-aware sizing — you place trades yourself.</p>
+    <h1 class="hero-headline">Aim to double this month. Track every dollar.</h1>
+    <p class="hero-sub">Morning buy/sell tickets on a fixed daily budget — with ROI and doubling progress after fees.</p>
     <button type="button" class="cta" id="scroll-to-desk">Open morning desk</button>
   </header>
 
   <main id="desk" class="desk">
     <section class="panel goal-panel" aria-labelledby="goal-heading">
       <h2 id="goal-heading">Today’s plan</h2>
-      <p class="panel-sub">Set budget and an aspirational monthly target. Targets are not guaranteed.</p>
+      <p class="panel-sub">Default goal: <strong>double capital this month (100% ROI)</strong>. Aspirational — not guaranteed.</p>
 
       <div class="goal-grid">
         <label class="field">
@@ -38,10 +37,10 @@
           <input type="number" id="daily-budget" min="1" step="1" value="100" />
         </label>
         <label class="field">
-          <span>Monthly target</span>
+          <span>Monthly goal</span>
           <div class="slider-row">
-            <input type="range" id="monthly-target" min="5" max="50" step="5" value="30" />
-            <strong id="monthly-target-label">30%</strong>
+            <input type="range" id="monthly-target" min="25" max="100" step="25" value="100" />
+            <strong id="monthly-target-label">2×</strong>
           </div>
         </label>
         <label class="field field-wide">
@@ -50,26 +49,36 @@
         </label>
       </div>
 
-      <p class="target-hint" id="target-hint">Target ≈ $630 this month (aspirational).</p>
+      <p class="target-hint" id="target-hint">Double goal: earn ≈ $2,100 profit on $2,100 capital this month (aspirational).</p>
 
       <div class="actions">
         <button type="button" class="cta" id="run-day">Run morning session</button>
-        <button type="button" class="ghost" id="refresh-month">Refresh progress</button>
+        <button type="button" class="ghost" id="refresh-month">Refresh performance</button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
     </section>
 
     <section class="panel progress-panel" aria-labelledby="progress-heading">
-      <h2 id="progress-heading">Monthly progress</h2>
-      <p class="panel-sub" id="progress-sub">Realized P&amp;L after fees vs aspirational target.</p>
+      <h2 id="progress-heading">Performance</h2>
+      <p class="panel-sub">Toward doubling this month — realized P&amp;L after fees.</p>
+
       <div class="progress-numbers">
         <span class="realized" id="realized">$0.00</span>
-        <span class="of-target" id="of-target">of $630</span>
+        <span class="of-target" id="of-target">of $2,100 to double</span>
       </div>
       <div class="bar-track" aria-hidden="true">
         <div class="bar-fill" id="bar-fill" style="width: 0%"></div>
       </div>
-      <p class="progress-meta" id="progress-meta">0% of target · 0 days run</p>
+      <p class="progress-meta" id="progress-meta">0% of double goal · ROI 0% · 0 days run</p>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat"><span class="stat-label">Capital in</span><strong id="stat-capital">$0</strong></div>
+        <div class="stat"><span class="stat-label">ROI</span><strong id="stat-roi">0%</strong></div>
+        <div class="stat"><span class="stat-label">Win rate</span><strong id="stat-win">—</strong></div>
+        <div class="stat"><span class="stat-label">Sells</span><strong id="stat-trades">0</strong></div>
+        <div class="stat"><span class="stat-label">Equity</span><strong id="stat-equity">$0</strong></div>
+        <div class="stat"><span class="stat-label">Cash</span><strong id="stat-cash">$0</strong></div>
+      </div>
     </section>
 
     <section class="panel recs-panel" aria-labelledby="recs-heading">
@@ -81,11 +90,10 @@
     </section>
 
     <section class="panel disclaimer-panel">
-      <p>Forge Desk is educational software — not financial advice. Profit targets are aspirational. The portal recommends tickets for <strong>manual</strong> placement; it does not auto-trade on Wealthsimple.</p>
+      <p>Doubling every month is an <strong>extremely aggressive</strong> aspirational goal and is not realistic for most strategies. Forge Desk tracks performance honestly so you can see what paper trading actually does. Tickets are for <strong>manual</strong> placement — not auto-trading on Wealthsimple. Not financial advice.</p>
     </section>
   </main>
 
-  <!-- Ticket detail dialog -->
   <dialog id="ticket-dialog" class="ticket-dialog">
     <form method="dialog" class="ticket-sheet">
       <header class="ticket-top">

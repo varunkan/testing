@@ -23,7 +23,7 @@ DEFAULT_UNIVERSE = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "SPY", "QQQ
 @dataclass
 class PortalConfig:
     daily_budget: float = 100.0
-    monthly_target_pct: float = 0.30  # aspirational, NOT guaranteed
+    monthly_target_pct: float = 1.0  # double capital this month (aspirational, NOT guaranteed)
     take_profit_pct: float = 0.03
     stop_loss_pct: float = 0.02
     max_hold_days: int = 5
@@ -334,10 +334,12 @@ def run_daily(
     for t in all_new_trades:
         store.save_trade(day=day, trade=t)
 
-    # Monthly progress
+    # Monthly progress (default goal: double capital this month)
     year_month = day.strftime("%Y-%m")
     realized_in_month = store.realized_pnl_in_month(year_month=year_month)
     days_run = store.days_run_in_month(year_month=year_month)
+    sell_count, win_count = store.sell_trade_stats(year_month=year_month)
+    capital = store.capital_added_in_month(year_month=year_month, daily_budget=cfg.daily_budget)
     progress = compute_monthly_progress(
         year_month=year_month,
         daily_budget=cfg.daily_budget,
@@ -345,6 +347,11 @@ def run_daily(
         planned_trading_days=cfg.planned_trading_days_per_month,
         realized_pnl=realized_in_month,
         days_run=days_run,
+        capital_invested=capital,
+        trades_count=sell_count,
+        winning_trades=win_count,
+        equity=float(portfolio_after.equity),
+        cash=float(portfolio_after.cash),
     )
 
     return DailyReport(

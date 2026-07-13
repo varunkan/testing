@@ -2,11 +2,11 @@
 End-to-end demo of the daily recommendation portal.
 
 Simulates ~21 trading days with synthetic price history (no network required),
-runs the portal each morning with a $100 daily budget, and prints the monthly
-progress toward the aspirational 30% target ($630 on $100 x 21 days).
+runs the portal each morning with a $100 daily budget, and prints performance
+toward the aspirational DOUBLE (100%) monthly goal ($2,100 on $100 x 21 days).
 
 Run:
-    python3 examples/demo_monthly_portal.py
+    PYTHONPATH=. python3 examples/demo_monthly_portal.py
 """
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ TRADING_DAYS = 21
 def synth_bars(ticker: str, up_to_day: date, *, drift: float, start_price: float) -> list[PriceBar]:
     """Deterministic daily bars with a per-day drift, ending on `up_to_day`."""
     bars: list[PriceBar] = []
-    # 30 calendar days of history before the first trading day, then advance with the sim.
     d = START - timedelta(days=30)
     price = start_price
     while d <= up_to_day:
@@ -54,7 +53,7 @@ def main() -> None:
 
     cfg = PortalConfig(
         daily_budget=100.0,
-        monthly_target_pct=0.30,
+        monthly_target_pct=1.0,  # double
         take_profit_pct=0.03,
         stop_loss_pct=0.02,
         max_hold_days=5,
@@ -69,7 +68,7 @@ def main() -> None:
 
     day = START
     trading_day_count = 0
-    print(f"=== Portal demo: ${cfg.daily_budget}/day, target {cfg.monthly_target_pct:.0%}/month ===\n")
+    print(f"=== Portal demo: ${cfg.daily_budget}/day, DOUBLE goal ({cfg.monthly_target_pct:.0%}) ===\n")
 
     with Store(db) as store:
         for _ in range(TRADING_DAYS):
@@ -88,8 +87,8 @@ def main() -> None:
             mp = report.monthly_progress
             print(
                 f"Day {trading_day_count:2d} ({day}) | recs: {recs or '-'} | "
-                f"realized ${mp['realized_pnl']:.2f} / ${mp['target_profit']:.0f} "
-                f"({mp['progress_pct']*100:.1f}% of target)"
+                f"P&L ${mp['realized_pnl']:.2f} / ${mp['target_profit']:.0f} "
+                f"({mp['progress_pct']*100:.1f}% of double) | ROI {mp['roi_pct']*100:.1f}%"
             )
             day += timedelta(days=1)
 
@@ -97,16 +96,17 @@ def main() -> None:
         realized = store.realized_pnl_in_month(year_month=year_month)
         days_run = store.days_run_in_month(year_month=year_month)
 
-    print("\n=== Final monthly summary ===")
+    target = cfg.monthly_target_pct * cfg.daily_budget * cfg.planned_trading_days_per_month
+    print("\n=== Final performance (double goal) ===")
     print(json.dumps(
         {
             "month": year_month,
             "days_run": days_run,
             "daily_budget": cfg.daily_budget,
-            "target_pct": cfg.monthly_target_pct,
-            "target_profit": cfg.monthly_target_pct * cfg.daily_budget * cfg.planned_trading_days_per_month,
+            "goal": "double (100% ROI on planned capital)",
+            "target_profit": target,
             "realized_pnl": round(realized, 2),
-            "progress_pct": round(realized / (cfg.monthly_target_pct * cfg.daily_budget * cfg.planned_trading_days_per_month) * 100, 2),
+            "progress_pct_of_double": round(realized / target * 100, 2) if target else 0,
             "disclaimer": "Aspirational target, not guaranteed. Paper trading only.",
         },
         indent=2,

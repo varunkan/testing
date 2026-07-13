@@ -181,3 +181,17 @@ class Store:
             (year_month,),
         ).fetchone()
         return float(row["total"])
+
+    def sell_trade_stats(self, *, year_month: str) -> tuple[int, int]:
+        """Returns (sell_trades_count, winning_sells_count)."""
+        rows = self._conn.execute(
+            "SELECT pnl FROM trades WHERE substr(day, 1, 7) = ? AND side = 'sell'",
+            (year_month,),
+        ).fetchall()
+        total = len(rows)
+        wins = sum(1 for r in rows if r["pnl"] is not None and float(r["pnl"]) > 0)
+        return total, wins
+
+    def capital_added_in_month(self, *, year_month: str, daily_budget: float) -> float:
+        """Approximate capital deployed = daily_budget × distinct days with recommendations."""
+        return float(daily_budget) * float(self.days_run_in_month(year_month=year_month))

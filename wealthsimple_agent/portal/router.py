@@ -19,7 +19,7 @@ _DEFAULT_DB = Path("portal.db")
 
 class PortalConfigModel(BaseModel):
     daily_budget: float = Field(default=100.0, gt=0)
-    monthly_target_pct: float = Field(default=0.30, ge=0.0, le=2.0)
+    monthly_target_pct: float = Field(default=1.0, ge=0.0, le=2.0)
     take_profit_pct: float = Field(default=0.03, gt=0.0)
     stop_loss_pct: float = Field(default=0.02, gt=0.0)
     max_hold_days: int = Field(default=5, ge=1, le=30)
@@ -67,18 +67,27 @@ def trades(year_month: str, db_path: str = str(_DEFAULT_DB)) -> list[dict]:
         return store.trades_in_month(year_month=year_month)
 
 
-@router.get("/monthly/{year_month}", summary="Monthly progress toward aspirational target")
+@router.get("/monthly/{year_month}", summary="Monthly performance vs double-money (or custom) target")
 def monthly(
     year_month: str,
     db_path: str = str(_DEFAULT_DB),
     daily_budget: float = 100.0,
-    target_pct: float = 0.30,
+    target_pct: float = 1.0,
 ) -> dict:
     with Store(db_path) as store:
         from wealthsimple_agent.portal.monthly import compute_monthly_progress
 
         realized = store.realized_pnl_in_month(year_month=year_month)
         days_run = store.days_run_in_month(year_month=year_month)
+        sell_count, win_count = store.sell_trade_stats(year_month=year_month)
+        capital = store.capital_added_in_month(year_month=year_month, daily_budget=daily_budget)
+        state = store.load_broker_state()
+        equity = 0.0
+        cash = 0.0
+        if state:
+            cash = float(state["cash"])
+            # Mark-to-market without live prices: cash + cost basis of positions as floor.
+            equity = cash + sum(float(p.quantity) * float(p.avg_price) for p in state["positions"])
         progress = compute_monthly_progress(
             year_month=year_month,
             daily_budget=daily_budget,
@@ -86,5 +95,20 @@ def monthly(
             planned_trading_days=21,
             realized_pnl=realized,
             days_run=days_run,
+            capital_invested=capital,
+            trades_count=sell_count,
+            winning_trades=win_count,
+            equity=equity,
+            cash=cash,
         )
     return progress.as_dict()
+
+
+@router.get("/performance/{year_month}", summary="Alias for monthly performance tracking")
+def performance(
+    year_month: str,
+    db_path: str = str(_DEFAULT_DB),
+    daily_budget: float = 100.0,
+    target_pct: float = 1.0,
+) -> dict:
+    return monthly(year_month, db_path=db_path, daily_budget=daily_budget, target_pct=target_pct)

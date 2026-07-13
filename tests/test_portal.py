@@ -27,23 +27,32 @@ def _bars(ticker: str, start: date, days: int, closes: list[float]) -> list[Pric
 
 
 def test_monthly_progress_math():
+    # Double goal: 100% of (100*21) = $2100; $420 realized => 20% of goal, ROI on $700 capital = 60%
     p = compute_monthly_progress(
         year_month="2026-07",
         daily_budget=100.0,
-        target_pct=0.30,
+        target_pct=1.0,
         planned_trading_days=21,
-        realized_pnl=126.0,  # 30% of (100*21) = 630 -> 20%
+        realized_pnl=420.0,
         days_run=7,
+        capital_invested=700.0,
+        trades_count=10,
+        winning_trades=6,
+        equity=900.0,
+        cash=200.0,
     )
-    assert p.target_profit == 630.0
+    assert p.target_profit == 2100.0
     assert abs(p.progress_pct - 0.20) < 1e-9
+    assert abs(p.roi_pct - 0.60) < 1e-9
+    assert abs(p.win_rate - 0.60) < 1e-9
+    assert p.as_dict()["goal_label"] == "double"
 
 
 def test_run_daily_persists_and_progresses(tmp_path: Path):
     db = tmp_path / "portal.db"
     cfg = PortalConfig(
         daily_budget=100.0,
-        monthly_target_pct=0.30,
+        monthly_target_pct=1.0,
         take_profit_pct=0.10,  # high so we don't exit immediately
         stop_loss_pct=0.20,
         max_hold_days=10,
@@ -77,9 +86,12 @@ def test_run_daily_persists_and_progresses(tmp_path: Path):
     total_notional = sum(r.quantity * 100.0 for r in buys)  # rough notional check
     assert total_notional <= 105.0  # within budget + small tolerance
 
-    # Progress object should exist and target be 630.
-    assert report.monthly_progress["target_profit"] == 630.0
+    # Double goal: target profit = 100% * 100 * 21 = 2100
+    assert report.monthly_progress["target_profit"] == 2100.0
+    assert report.monthly_progress["target_pct"] == 1.0
     assert report.monthly_progress["days_run"] == 1
+    assert "roi_pct" in report.monthly_progress
+    assert "capital_invested" in report.monthly_progress
 
     # Persistence: a second run should reload broker state (no crash, fresh budget added).
     with Store(db) as store:
@@ -91,6 +103,7 @@ def test_run_daily_persists_and_progresses(tmp_path: Path):
             news_by_ticker=news,
         )
     assert report2.monthly_progress["days_run"] == 2
+    assert report2.monthly_progress["capital_invested"] == 200.0
 
 
 def test_take_profit_exit_triggers_sell(tmp_path: Path):

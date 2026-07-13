@@ -98,8 +98,19 @@ Each portal day:
 6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).
 7. Reports **monthly progress** toward the aspirational target.
 
-The monthly target is computed as `target_pct × daily_budget × planned_trading_days`
-(e.g. 30% × $100 × 21 days = $630). Progress is `realized_pnl / target_profit`.
+The monthly target defaults to **double capital this month (100% ROI)**:
+`target_profit = 1.0 × daily_budget × planned_trading_days`
+(e.g. $100 × 21 days = $2,100 capital → aim for +$2,100 profit).
+
+Performance tracking includes:
+- realized P&L after fees
+- capital invested
+- ROI %
+- win rate / sell count
+- equity & cash
+- progress % toward the doubling goal
+
+**This goal is aspirational and extremely aggressive — not guaranteed.**
 
 ## Safety / important notes
 

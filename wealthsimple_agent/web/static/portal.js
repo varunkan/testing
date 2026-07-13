@@ -25,12 +25,27 @@
     return Number(monthlyTarget.value) / 100;
   }
 
+  function money(n) {
+    return Number(n || 0).toLocaleString(undefined, {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    });
+  }
+
   function updateTargetHint() {
     const budget = Number(dailyBudget.value) || 0;
-    const dollars = targetPct() * budget * plannedDays();
-    monthlyTargetLabel.textContent = `${monthlyTarget.value}%`;
-    targetHint.textContent = `Target ≈ $${dollars.toFixed(0)} this month (aspirational).`;
-    $("of-target").textContent = `of $${dollars.toFixed(0)}`;
+    const capital = budget * plannedDays();
+    const dollars = targetPct() * capital;
+    const pct = Number(monthlyTarget.value);
+    monthlyTargetLabel.textContent = pct >= 100 ? "2×" : `${pct}%`;
+    if (pct >= 100) {
+      targetHint.textContent = `Double goal: earn ≈ ${money(dollars)} profit on ${money(capital)} capital this month (aspirational).`;
+      $("of-target").textContent = `of ${money(dollars)} to double`;
+    } else {
+      targetHint.textContent = `Target ≈ ${money(dollars)} profit on ${money(capital)} capital this month (aspirational).`;
+      $("of-target").textContent = `of ${money(dollars)}`;
+    }
   }
 
   function setStatus(msg, isError = false) {
@@ -65,11 +80,23 @@
     const realized = Number(p.realized_pnl) || 0;
     const target = Number(p.target_profit) || 1;
     const pct = Number(p.progress_pct) || 0;
-    $("realized").textContent = `$${realized.toFixed(2)}`;
-    $("of-target").textContent = `of $${Number(p.target_profit).toFixed(0)}`;
+    const roi = Number(p.roi_pct) || 0;
+    $("realized").textContent = money(realized);
+    $("of-target").textContent =
+      Number(p.target_pct) >= 1
+        ? `of ${money(target)} to double`
+        : `of ${money(target)}`;
     $("bar-fill").style.width = `${Math.min(Math.max(pct, 0), 1) * 100}%`;
     $("progress-meta").textContent =
-      `${Math.round(pct * 100)}% of ${Math.round(Number(p.target_pct) * 100)}% monthly target · ${p.days_run} days run`;
+      `${Math.round(pct * 100)}% of goal · ROI ${(roi * 100).toFixed(1)}% · ${p.days_run} days run`;
+
+    $("stat-capital").textContent = money(p.capital_invested || 0);
+    $("stat-roi").textContent = `${(roi * 100).toFixed(1)}%`;
+    $("stat-win").textContent =
+      Number(p.trades_count) > 0 ? `${Math.round(Number(p.win_rate) * 100)}%` : "—";
+    $("stat-trades").textContent = String(p.trades_count || 0);
+    $("stat-equity").textContent = money(p.equity || 0);
+    $("stat-cash").textContent = money(p.cash || 0);
   }
 
   function renderRecommendations(report) {
@@ -138,7 +165,7 @@
       const report = await res.json();
       renderRecommendations(report);
       renderProgress(report.monthly_progress);
-      setStatus("Morning session complete.");
+      setStatus("Morning session complete — performance updated.");
       $("desk").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       setStatus(err.message || String(err), true);
@@ -149,18 +176,18 @@
 
   async function refreshMonthly() {
     refreshMonthBtn.disabled = true;
-    setStatus("Refreshing monthly progress…");
+    setStatus("Refreshing performance…");
     try {
       const ym = new Date().toISOString().slice(0, 7);
       const budget = Number(dailyBudget.value) || 100;
       const pct = targetPct();
       const res = await fetch(
-        `/portal/monthly/${ym}?daily_budget=${encodeURIComponent(budget)}&target_pct=${encodeURIComponent(pct)}`
+        `/portal/performance/${ym}?daily_budget=${encodeURIComponent(budget)}&target_pct=${encodeURIComponent(pct)}`
       );
       if (!res.ok) throw new Error(await res.text());
       const progress = await res.json();
       renderProgress(progress);
-      setStatus("Progress updated.");
+      setStatus("Performance updated.");
     } catch (err) {
       setStatus(err.message || String(err), true);
     } finally {
@@ -176,10 +203,6 @@
   monthlyTarget.addEventListener("input", updateTargetHint);
   runDayBtn.addEventListener("click", runMorningSession);
   refreshMonthBtn.addEventListener("click", refreshMonthly);
-
-  dialog.addEventListener("close", () => {
-    /* no-op: approve handled separately */
-  });
 
   approveBtn.addEventListener("click", (e) => {
     e.preventDefault();
