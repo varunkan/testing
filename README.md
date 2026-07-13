@@ -32,6 +32,14 @@ pip3 install -r requirements.txt
 pip3 install -e .
 ```
 
+## Deploy to Vercel + Google Cloud
+
+See [`DEPLOY.md`](DEPLOY.md) for a full production deployment guide:
+- Vercel hosts the static frontend
+- Google Cloud Run hosts the Dockerized FastAPI backend
+- SQLite is the default database; Cloud SQL (PostgreSQL) is recommended for production
+- GitHub Actions workflow included for automated backend deployments
+
 ## Quickstart (CLI)
 
 ```bash
