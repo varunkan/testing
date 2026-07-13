@@ -37,3 +37,8 @@ def test_tsx_uses_to_suffix():
 def test_broad_includes_both_exchanges():
     assert any(t.endswith(".TO") for t in BROAD)
     assert any(not t.endswith(".TO") and t not in ("SPY", "QQQ") for t in BROAD)
+
+
+def test_no_duplicates_within_presets():
+    for name, tickers in PRESETS.items():
+        assert len(tickers) == len(set(tickers)), f"{name} contains duplicate tickers"
