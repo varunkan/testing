@@ -68,7 +68,12 @@ def trades(year_month: str, db_path: str = str(_DEFAULT_DB)) -> list[dict]:
 
 
 @router.get("/monthly/{year_month}", summary="Monthly progress toward aspirational target")
-def monthly(year_month: str, db_path: str = str(_DEFAULT_DB), daily_budget: float = 100.0) -> dict:
+def monthly(
+    year_month: str,
+    db_path: str = str(_DEFAULT_DB),
+    daily_budget: float = 100.0,
+    target_pct: float = 0.30,
+) -> dict:
     with Store(db_path) as store:
         from wealthsimple_agent.portal.monthly import compute_monthly_progress
 
@@ -77,7 +82,7 @@ def monthly(year_month: str, db_path: str = str(_DEFAULT_DB), daily_budget: floa
         progress = compute_monthly_progress(
             year_month=year_month,
             daily_budget=daily_budget,
-            target_pct=0.30,
+            target_pct=float(target_pct),
             planned_trading_days=21,
             realized_pnl=realized,
             days_run=days_run,

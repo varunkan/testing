@@ -16,7 +16,8 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 - Run **paper trading** and a simple **daily-bar backtest**
 - Export order intents for manual execution
 - Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages exits (take-profit / stop-loss / time), and tracks **monthly progress toward an aspirational target**
-- Use the **Forge Desk iOS app** (`ios/`) — SwiftUI UI for goals, morning tickets, and monthly progress (demo mode works offline)
+- Use the **Forge Desk web portal** at `/` — morning tickets, budget, monthly progress in the browser
+- Optional: SwiftUI sources under `ios/` (not required for the web portal)
 
 ## Installation
 
@@ -65,19 +66,26 @@ open ForgeDesk.xcodeproj
 ```
 
 Demo mode is on by default (no backend required). To use live recommendations, run the API above and point Settings → API base URL at it.
-## Quickstart (API)
+## Quickstart (Web portal)
 
 ```bash
-uvicorn wealthsimple_agent.api.main:app --reload --port 8000
+uvicorn wealthsimple_agent.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Then call:
+Open **http://127.0.0.1:8000/** — the Forge Desk web portal:
+
+1. Set daily budget (e.g. $100) and monthly target %
+2. Click **Run morning session**
+3. Review buy/sell tickets, open a ticket, approve for manual placement
+4. Track monthly progress toward the aspirational target
+
+API endpoints remain available:
 - `GET /health`
 - `POST /signals`
-- `POST /portal/daily` — run one portal trading day
-- `GET /portal/recommendations/{day}` — recommendations for a day
-- `GET /portal/trades/{year_month}` — trades for a month
-- `GET /portal/monthly/{year_month}` — monthly progress toward target
+- `POST /portal/daily`
+- `GET /portal/recommendations/{day}`
+- `GET /portal/trades/{year_month}`
+- `GET /portal/monthly/{year_month}`
 
 ## How the daily portal works
 

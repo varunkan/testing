@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from wealthsimple_agent.config import get_settings
@@ -15,8 +18,19 @@ from wealthsimple_agent.risk import RiskLimits
 from wealthsimple_agent.portal.router import router as portal_router
 
 
-app = FastAPI(title="Wealthsimple Trading Agent (Signals)", version="0.1.0")
+_WEB_DIR = Path(__file__).resolve().parents[1] / "web"
+_STATIC_DIR = _WEB_DIR / "static"
+
+app = FastAPI(title="Forge Desk — Trading Recommendation Portal", version="0.2.0")
 app.include_router(portal_router)
+
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def portal_home() -> FileResponse:
+    return FileResponse(_WEB_DIR / "index.html")
 
 
 class SignalsRequest(BaseModel):

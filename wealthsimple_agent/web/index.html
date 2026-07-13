@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forge Desk — Morning recommendations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/portal.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <!-- Hero: brand first, one headline, one sentence, one CTA -->
+  <header class="hero" id="hero">
+    <div class="hero-mark" aria-hidden="true">
+      <span class="pulse-ring"></span>
+      <svg class="hero-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 34 L16 22 L24 28 L34 12 L42 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M34 12 H42 V20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="brand">Forge Desk</p>
+    <h1 class="hero-headline">Morning recommendations. Fixed budget. Clear exits.</h1>
+    <p class="hero-sub">Each day the agent ranks buys and sells with confidence and fee-aware sizing — you place trades yourself.</p>
+    <button type="button" class="cta" id="scroll-to-desk">Open morning desk</button>
+  </header>
+
+  <main id="desk" class="desk">
+    <section class="panel goal-panel" aria-labelledby="goal-heading">
+      <h2 id="goal-heading">Today’s plan</h2>
+      <p class="panel-sub">Set budget and an aspirational monthly target. Targets are not guaranteed.</p>
+
+      <div class="goal-grid">
+        <label class="field">
+          <span>Daily budget (USD)</span>
+          <input type="number" id="daily-budget" min="1" step="1" value="100" />
+        </label>
+        <label class="field">
+          <span>Monthly target</span>
+          <div class="slider-row">
+            <input type="range" id="monthly-target" min="5" max="50" step="5" value="30" />
+            <strong id="monthly-target-label">30%</strong>
+          </div>
+        </label>
+        <label class="field field-wide">
+          <span>Universe (comma-separated)</span>
+          <input type="text" id="universe" value="AAPL, MSFT, GOOGL, AMZN, NVDA, META, SPY, QQQ" />
+        </label>
+      </div>
+
+      <p class="target-hint" id="target-hint">Target ≈ $630 this month (aspirational).</p>
+
+      <div class="actions">
+        <button type="button" class="cta" id="run-day">Run morning session</button>
+        <button type="button" class="ghost" id="refresh-month">Refresh progress</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel progress-panel" aria-labelledby="progress-heading">
+      <h2 id="progress-heading">Monthly progress</h2>
+      <p class="panel-sub" id="progress-sub">Realized P&amp;L after fees vs aspirational target.</p>
+      <div class="progress-numbers">
+        <span class="realized" id="realized">$0.00</span>
+        <span class="of-target" id="of-target">of $630</span>
+      </div>
+      <div class="bar-track" aria-hidden="true">
+        <div class="bar-fill" id="bar-fill" style="width: 0%"></div>
+      </div>
+      <p class="progress-meta" id="progress-meta">0% of target · 0 days run</p>
+    </section>
+
+    <section class="panel recs-panel" aria-labelledby="recs-heading">
+      <div class="recs-header">
+        <h2 id="recs-heading">Morning tickets</h2>
+        <p class="panel-sub" id="recs-day">Run a session to see buy/sell recommendations.</p>
+      </div>
+      <div id="recs-list" class="recs-list"></div>
+    </section>
+
+    <section class="panel disclaimer-panel">
+      <p>Forge Desk is educational software — not financial advice. Profit targets are aspirational. The portal recommends tickets for <strong>manual</strong> placement; it does not auto-trade on Wealthsimple.</p>
+    </section>
+  </main>
+
+  <!-- Ticket detail dialog -->
+  <dialog id="ticket-dialog" class="ticket-dialog">
+    <form method="dialog" class="ticket-sheet">
+      <header class="ticket-top">
+        <span class="badge" id="ticket-action">BUY</span>
+        <button type="submit" class="ghost close-x" value="cancel" aria-label="Close">Close</button>
+      </header>
+      <h3 id="ticket-ticker">—</h3>
+      <p id="ticket-reason" class="ticket-reason"></p>
+      <dl class="ticket-metrics" id="ticket-metrics"></dl>
+      <p id="ticket-rationale" class="ticket-rationale"></p>
+      <p class="ticket-note">Approve marks this ticket for manual placement in your brokerage app.</p>
+      <button type="submit" class="cta amber" id="approve-ticket" value="approve">Approve ticket</button>
+      <p class="approved-msg" id="approved-msg" hidden>Marked for manual placement.</p>
+    </form>
+  </dialog>
+
+  <script src="/static/portal.js" defer></script>
+</body>
+</html>
