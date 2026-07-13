@@ -82,6 +82,72 @@ def _max_drawdown(closes: list[float]) -> float:
     return mdd
 
 
+def _macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -> tuple[float, float, float] | None:
+    if len(closes) < slow + signal:
+        return None
+    ema_fast = _ema(closes, fast)
+    ema_slow = _ema(closes, slow)
+    if ema_fast is None or ema_slow is None:
+        return None
+    macd_line = ema_fast - ema_slow
+    # Build a simple signal line from recent MACD values
+    macd_series: list[float] = []
+    for i in range(signal, len(closes) + 1):
+        chunk = closes[:i]
+        ef = _ema(chunk, fast)
+        es = _ema(chunk, slow)
+        if ef is not None and es is not None:
+            macd_series.append(ef - es)
+    if len(macd_series) < signal:
+        signal_line = macd_line
+    else:
+        signal_line = sum(macd_series[-signal:]) / float(signal)
+    hist = macd_line - signal_line
+    return macd_line, signal_line, hist
+
+
+def _adx(bars: list[PriceBar], window: int = 14) -> float | None:
+    """Simple ADX (trend strength, 0..100)."""
+    if len(bars) < window + 2:
+        return None
+    tr_list: list[float] = []
+    plus_dm: list[float] = []
+    minus_dm: list[float] = []
+    for i in range(1, len(bars)):
+        h = float(bars[i].high)
+        l = float(bars[i].low)
+        prev_h = float(bars[i - 1].high)
+        prev_l = float(bars[i - 1].low)
+        prev_c = float(bars[i - 1].close)
+        tr = max(h - l, abs(h - prev_c), abs(l - prev_c))
+        up = h - prev_h
+        down = prev_l - l
+        pdm = up if (up > down and up > 0) else 0.0
+        mdm = down if (down > up and down > 0) else 0.0
+        tr_list.append(tr)
+        plus_dm.append(pdm)
+        minus_dm.append(mdm)
+    if len(tr_list) < window:
+        return None
+    atr = sum(tr_list[-window:]) / float(window)
+    plus_di = (sum(plus_dm[-window:]) / float(window)) / max(1e-9, atr) * 100.0
+    minus_di = (sum(minus_dm[-window:]) / float(window)) / max(1e-9, atr) * 100.0
+    dx = abs(plus_di - minus_di) / max(1e-9, plus_di + minus_di) * 100.0
+    return float(dx)
+
+
+def _sharpe(returns: list[float], window: int = 20) -> float | None:
+    if len(returns) < window:
+        return None
+    chunk = returns[-window:]
+    sd = _stdev(chunk)
+    if sd == 0:
+        return 0.0
+    mean = sum(chunk) / len(chunk)
+    # Annualize roughly (sqrt(252))
+    return float((mean / sd) * math.sqrt(252))
+
+
 @dataclass(frozen=True)
 class FactorSnapshot:
     momentum_short: float
@@ -95,6 +161,9 @@ class FactorSnapshot:
     sentiment: float
     regime: str  # "trend" | "chop" | "unknown"
     realized_vol: float
+    macd: float
+    adx: float
+    sharpe: float
 
 
 def compute_factors(*, bars: list[PriceBar], news: list[NewsItem]) -> FactorSnapshot | None:
@@ -163,6 +232,22 @@ def compute_factors(*, bars: list[PriceBar], news: list[NewsItem]) -> FactorSnap
 
     sentiment = float(score_news(news))
 
+    # MACD histogram signal
+    macd_data = _macd(closes)
+    if macd_data is None:
+        macd_sig = 0.0
+    else:
+        _, _, hist = macd_data
+        macd_sig = _squash(hist / max(1e-9, abs(closes[-1]) * 0.01) * 8.0)
+
+    # ADX trend strength -> directional bias when strong
+    adx_raw = _adx(bars, window=min(14, max(2, len(bars) // 3))) or 0.0
+    adx_sig = _squash((adx_raw - 20.0) / 15.0) * (1.0 if mom_m >= 0 else -1.0)
+
+    # Risk-adjusted momentum (Sharpe-like)
+    sharpe_raw = _sharpe(rets, window=min(20, max(2, len(rets)))) or 0.0
+    sharpe_sig = _squash(sharpe_raw / 2.0)
+
     # Regime: trending if |trend| high and drawdown not chaotic
     mdd = _max_drawdown(closes[-min(30, len(closes)) :])
     if abs(trend) > 0.25 and mdd < 0.12:
@@ -184,41 +269,53 @@ def compute_factors(*, bars: list[PriceBar], news: list[NewsItem]) -> FactorSnap
         sentiment=float(sentiment),
         regime=regime,
         realized_vol=float(realized_vol),
+        macd=float(macd_sig),
+        adx=float(adx_sig),
+        sharpe=float(sharpe_sig),
     )
 
 
 def _weights_for_regime(regime: str) -> dict[str, float]:
     if regime == "trend":
         return {
-            "momentum_short": 0.18,
-            "momentum_med": 0.18,
-            "trend": 0.22,
-            "breakout": 0.14,
-            "rsi_signal": 0.05,
+            "momentum_short": 0.13,
+            "momentum_med": 0.12,
+            "trend": 0.16,
+            "breakout": 0.10,
+            "rsi_signal": 0.04,
             "mean_reversion": 0.02,
-            "volume_thrust": 0.08,
-            "sentiment": 0.13,
+            "volume_thrust": 0.06,
+            "sentiment": 0.10,
+            "macd": 0.12,
+            "adx": 0.10,
+            "sharpe": 0.05,
         }
     if regime == "chop":
         return {
-            "momentum_short": 0.08,
-            "momentum_med": 0.06,
-            "trend": 0.08,
-            "breakout": 0.08,
-            "rsi_signal": 0.22,
-            "mean_reversion": 0.22,
-            "volume_thrust": 0.06,
-            "sentiment": 0.20,
+            "momentum_short": 0.05,
+            "momentum_med": 0.04,
+            "trend": 0.05,
+            "breakout": 0.06,
+            "rsi_signal": 0.18,
+            "mean_reversion": 0.18,
+            "volume_thrust": 0.05,
+            "sentiment": 0.16,
+            "macd": 0.08,
+            "adx": 0.05,
+            "sharpe": 0.10,
         }
     return {
-        "momentum_short": 0.14,
-        "momentum_med": 0.14,
-        "trend": 0.16,
-        "breakout": 0.12,
-        "rsi_signal": 0.10,
-        "mean_reversion": 0.08,
-        "volume_thrust": 0.08,
-        "sentiment": 0.18,
+        "momentum_short": 0.10,
+        "momentum_med": 0.10,
+        "trend": 0.12,
+        "breakout": 0.09,
+        "rsi_signal": 0.08,
+        "mean_reversion": 0.06,
+        "volume_thrust": 0.06,
+        "sentiment": 0.14,
+        "macd": 0.10,
+        "adx": 0.08,
+        "sharpe": 0.07,
     }
 
 
@@ -256,6 +353,9 @@ def generate_advanced_signal(
         "mean_reversion": factors.mean_reversion,
         "volume_thrust": factors.volume_thrust,
         "sentiment": factors.sentiment,
+        "macd": factors.macd,
+        "adx": factors.adx,
+        "sharpe": factors.sharpe,
     }
 
     score = sum(weights[k] * components[k] for k in weights)

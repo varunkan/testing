@@ -151,3 +151,35 @@ def trades_recent(year_month: Optional[str] = None, db_path: str = str(_DEFAULT_
     with Store(db_path) as store:
         rows = store.trades_in_month(year_month=ym)
     return rows[-max(1, min(limit, 500)) :]
+
+
+# ---- Accuracy / honesty ----
+
+from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars
+from wealthsimple_agent.strategy.accuracy import measure_accuracy
+
+
+@router.get("/accuracy/{ticker}", summary="Measured historical hit-rate for the signal engine")
+def accuracy(
+    ticker: str,
+    horizon_days: int = 5,
+    threshold_pct: float = 0.01,
+    lookback_days: int = 180,
+) -> dict:
+    t = ticker.strip().upper()
+    bars = fetch_daily_bars([t], lookback_days=lookback_days).get(t, [])
+    if not bars or len(bars) < 50:
+        return {
+            "ticker": t,
+            "samples": 0,
+            "hit_rate": 0.0,
+            "disclaimer": "Not enough history to measure accuracy yet.",
+        }
+    rep = measure_accuracy(
+        bars=bars,
+        horizon_days=horizon_days,
+        threshold_pct=threshold_pct,
+        min_lookback=40,
+    )
+    d = rep.__dict__
+    return d

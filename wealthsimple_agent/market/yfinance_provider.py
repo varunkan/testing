@@ -7,19 +7,47 @@ import yfinance as yf
 from wealthsimple_agent.models import PriceBar
 
 
+def _get(row, key: str, ticker: str | None = None) -> float:
+    """Robustly extract an OHLCV value from a yfinance row (handles MultiIndex + flat)."""
+    if ticker is not None:
+        try:
+            return float(row[(key, ticker)])
+        except (KeyError, TypeError, ValueError):
+            pass
+    try:
+        return float(row[key])
+    except (KeyError, TypeError, ValueError):
+        pass
+    # Tuple-style lookup for flat series with MultiIndex labels
+    try:
+        return float(row[(key,)])
+    except (KeyError, TypeError, ValueError):
+        pass
+    # Fallback: scan index for a match starting with key
+    idx = list(row.index) if hasattr(row, "index") else []
+    for label in idx:
+        s = str(label)
+        if s == key or s.startswith((key + ",", key + ",'" if False else key)):
+            try:
+                return float(row[label])
+            except (TypeError, ValueError):
+                continue
+    raise KeyError(key)
+
+
 def fetch_daily_bars(
     tickers: list[str],
     *,
     lookback_days: int = 30,
 ) -> dict[str, list[PriceBar]]:
     """
-    Best-effort daily OHLCV via yfinance.
+    Best-effort daily OHLCV via yfinance. Robust to single/multi-ticker shapes.
     """
     tickers = [t.strip().upper() for t in tickers if t and t.strip()]
     if not tickers:
         return {}
 
-    start = date.today() - timedelta(days=int(lookback_days) * 2)  # buffer for weekends/holidays
+    start = date.today() - timedelta(days=int(lookback_days) * 2)
     data = yf.download(
         tickers=tickers,
         start=start.isoformat(),
@@ -28,44 +56,62 @@ def fetch_daily_bars(
         progress=False,
         threads=True,
     )
+    if data is None or data.empty:
+        return {t: [] for t in tickers}
 
     out: dict[str, list[PriceBar]] = {t: [] for t in tickers}
+    is_multi = len(tickers) > 1
+    multi_index = isinstance(data.columns, __import__("pandas").MultiIndex)
 
-    # yfinance returns different shapes for 1 vs many tickers.
-    if len(tickers) == 1:
-        t = tickers[0]
-        df = data
-        for idx, row in df.tail(lookback_days).iterrows():
-            day = idx.date()
-            out[t].append(
-                PriceBar(
-                    ticker=t,
-                    day=day,
-                    open=float(row["Open"]),
-                    high=float(row["High"]),
-                    low=float(row["Low"]),
-                    close=float(row["Close"]),
-                    volume=float(row.get("Volume")) if "Volume" in row and row.get("Volume") is not None else None,
-                )
-            )
+    def _volume(row, ticker: str | None) -> float | None:
+        try:
+            v = _get(row, "Volume", ticker)
+            return float(v)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    if is_multi or multi_index:
+        for t in tickers:
+            try:
+                df = data[t] if t in data.columns.get_level_values(0) else None
+            except Exception:
+                df = None
+            if df is None or getattr(df, "empty", True):
+                continue
+            for idx, row in df.tail(lookback_days).iterrows():
+                try:
+                    out[t].append(
+                        PriceBar(
+                            ticker=t,
+                            day=idx.date(),
+                            open=_get(row, "Open", None),
+                            high=_get(row, "High", None),
+                            low=_get(row, "Low", None),
+                            close=_get(row, "Close", None),
+                            volume=_volume(row, None),
+                        )
+                    )
+                except (KeyError, TypeError, ValueError):
+                    continue
         return out
 
-    for t in tickers:
-        if t not in data.columns.get_level_values(0):
-            continue
-        df = data[t]
-        for idx, row in df.tail(lookback_days).iterrows():
+    # Single ticker, flat columns
+    t = tickers[0]
+    for idx, row in data.tail(lookback_days).iterrows():
+        try:
             out[t].append(
                 PriceBar(
                     ticker=t,
                     day=idx.date(),
-                    open=float(row["Open"]),
-                    high=float(row["High"]),
-                    low=float(row["Low"]),
-                    close=float(row["Close"]),
-                    volume=float(row.get("Volume")) if "Volume" in row and row.get("Volume") is not None else None,
+                    open=_get(row, "Open", None),
+                    high=_get(row, "High", None),
+                    low=_get(row, "Low", None),
+                    close=_get(row, "Close", None),
+                    volume=_volume(row, None),
                 )
             )
+        except (KeyError, TypeError, ValueError):
+            continue
     return out
 
 
@@ -73,4 +119,3 @@ def latest_close(bars: list[PriceBar]) -> float | None:
     if not bars:
         return None
     return float(bars[-1].close)
-

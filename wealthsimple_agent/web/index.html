@@ -148,6 +148,23 @@
     <section class="panel disclaimer-panel">
       <p><strong>10× every month is an extreme aspirational goal</strong> — not realistic for most strategies and not guaranteed. Forge Desk tracks performance honestly so you can see what paper trading actually does. Test trading is paper only — not auto-trading on Wealthsimple. Not financial advice.</p>
     </section>
+
+    <section class="panel accuracy-panel" aria-labelledby="accuracy-heading">
+      <h2 id="accuracy-heading">Measured accuracy</h2>
+      <p class="panel-sub">Backtests the signal engine on a ticker’s past prices. <strong>Historical hit-rate, not a future guarantee.</strong></p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Ticker</span>
+          <input type="text" id="acc-ticker" value="AAPL" />
+        </label>
+        <label class="field">
+          <span>Horizon (days)</span>
+          <input type="number" id="acc-horizon" min="1" max="20" value="5" />
+        </label>
+        <button type="button" class="ghost" id="acc-run">Measure hit-rate</button>
+      </div>
+      <div id="acc-result" class="acc-result">Run a measurement to see the engine’s past hit-rate.</div>
+    </section>
   </main>
 
   <dialog id="ticket-dialog" class="ticket-dialog">

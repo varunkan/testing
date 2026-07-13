@@ -347,6 +347,33 @@
     }
   });
 
+  $("acc-run").addEventListener("click", async () => {
+    const ticker = ($("acc-ticker").value || "AAPL").trim().toUpperCase();
+    const horizon = Number($("acc-horizon").value) || 5;
+    const box = $("acc-result");
+    box.textContent = "Measuring…";
+    try {
+      const res = await fetch(
+        `/portal/accuracy/${encodeURIComponent(ticker)}?horizon_days=${horizon}&threshold_pct=0.01&lookback_days=180`
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const d = await res.json();
+      if (!d.samples) {
+        box.innerHTML = `<p>${d.disclaimer || "Not enough history."}</p>`;
+        return;
+      }
+      const pct = (Number(d.hit_rate) * 100).toFixed(1);
+      const avg = (Number(d.avg_forward_return) * 100).toFixed(2);
+      box.innerHTML = `
+        <p><span class="big">${pct}%</span> hit-rate on ${d.samples} past signals (${d.correct} correct) over ${d.horizon_days}-day horizon.</p>
+        <p>Avg forward return per signal: ${avg}%. Threshold ±${(Number(d.threshold_pct) * 100).toFixed(1)}%.</p>
+        <p>${d.disclaimer}</p>
+      `;
+    } catch (err) {
+      box.textContent = err.message || String(err);
+    }
+  });
+
   updateTargetHint();
   recsList.innerHTML = `<p class="empty">Run a morning session to generate tickets.</p>`;
   refreshPaperViews().catch(() => {});
