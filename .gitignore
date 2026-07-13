@@ -24,3 +24,10 @@ build/
 *.db
 *.sqlite
 *.sqlite3
+
+# Xcode / iOS
+ios/ForgeDesk.xcodeproj/
+ios/ForgeDesk.xcworkspace/
+ios/**/xcuserdata/
+DerivedData/
+*.xcuserstate

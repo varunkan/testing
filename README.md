@@ -16,6 +16,7 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 - Run **paper trading** and a simple **daily-bar backtest**
 - Export order intents for manual execution
 - Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages exits (take-profit / stop-loss / time), and tracks **monthly progress toward an aspirational target**
+- Use the **Forge Desk iOS app** (`ios/`) — SwiftUI UI for goals, morning tickets, and monthly progress (demo mode works offline)
 
 ## Installation
 
@@ -52,6 +53,18 @@ See what was recommended on a given day:
 python3 -m wealthsimple_agent.cli portal history --day 2026-07-01
 ```
 
+## iOS app (Forge Desk)
+
+SwiftUI client for the portal. See [`ios/README.md`](ios/README.md).
+
+```bash
+cd ios
+brew install xcodegen   # once
+./bootstrap_xcode.sh
+open ForgeDesk.xcodeproj
+```
+
+Demo mode is on by default (no backend required). To use live recommendations, run the API above and point Settings → API base URL at it.
 ## Quickstart (API)
 
 ```bash
