@@ -18,6 +18,16 @@
 
   let currentTicket = null;
 
+  function directionBadgeClass(direction) {
+    const d = String(direction).toLowerCase();
+    return d === "buy" ? "" : d === "sell" ? "sell" : "";
+  }
+
+  function directionLabel(direction) {
+    const d = String(direction).toUpperCase();
+    return d === "BUY" ? "BUY" : d === "SELL" ? "SELL" : "HOLD";
+  }
+
   function plannedDays() {
     return 21;
   }
@@ -186,6 +196,24 @@
       <div><dt>Confidence</dt><dd>${Math.round(Number(rec.confidence) * 100)}%</dd></div>
       <div><dt>Order type</dt><dd>${rec.limit_price != null ? `Limit $${Number(rec.limit_price).toFixed(2)}` : "Market / best effort"}</dd></div>
     `;
+
+    // Render persona council opinions in the ticket dialog if available.
+    const personaBox = $("ticket-personas");
+    if (personaBox) {
+      const ops = rec.persona_opinions || [];
+      if (ops.length) {
+        const rows = ops.map((op) => {
+          const badgeClass = directionBadgeClass(op.direction);
+          const badge = `<span class="badge ${badgeClass}">${directionLabel(op.direction)}</span>`;
+          return `<div class="persona-opinion-row"><span>${badge} <strong>${op.persona}</strong></span><span>${(Number(op.score) * 100).toFixed(1)}% · ${Math.round(Number(op.confidence) * 100)}% conf</span></div>`;
+        }).join("");
+        personaBox.innerHTML = `<h4>Analyst & market-driver council</h4>${rows}`;
+        personaBox.hidden = false;
+      } else {
+        personaBox.innerHTML = "";
+        personaBox.hidden = true;
+      }
+    }
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     }
@@ -373,6 +401,46 @@
       `;
     } catch (err) {
       box.textContent = err.message || String(err);
+    }
+  });
+
+  $("persona-run").addEventListener("click", async () => {
+    const ticker = ($("persona-ticker").value || "AAPL").trim().toUpperCase();
+    const resultBox = $("persona-result");
+    const listBox = $("persona-list");
+    resultBox.textContent = "Gathering analyst & market-driver opinions…";
+    listBox.innerHTML = "";
+    try {
+      const res = await fetch(`/portal/personas/${encodeURIComponent(ticker)}?lookback_days=90`);
+      if (!res.ok) throw new Error(await res.text());
+      const d = await res.json();
+      if (!d.opinions || !d.opinions.length) {
+        resultBox.textContent = d.disclaimer || "No opinions available.";
+        return;
+      }
+      const buyCount = d.opinions.filter((o) => String(o.direction).toLowerCase() === "buy").length;
+      const sellCount = d.opinions.filter((o) => String(o.direction).toLowerCase() === "sell").length;
+      const holdCount = d.opinions.length - buyCount - sellCount;
+      resultBox.innerHTML = `
+        <strong>${ticker}</strong> — ${buyCount} buy, ${sellCount} sell, ${holdCount} hold
+        <br><span style="font-size:0.85rem">${d.disclaimer}</span>
+      `;
+      listBox.innerHTML = d.opinions.map((op) => {
+        const badgeClass = directionBadgeClass(op.direction);
+        return `
+          <div class="persona-card">
+            <span class="badge ${badgeClass}">${directionLabel(op.direction)}</span>
+            <div class="persona-info">
+              <strong>${op.persona}</strong>
+              <span>${op.style}</span>
+            </div>
+            <span class="persona-score">${(Number(op.score) * 100).toFixed(1)}% · ${Math.round(Number(op.confidence) * 100)}% conf</span>
+          </div>
+          <p style="margin:0 0 0.5rem 0.2rem; color:var(--muted); font-size:0.85rem;">${op.rationale}</p>
+        `;
+      }).join("");
+    } catch (err) {
+      resultBox.textContent = err.message || String(err);
     }
   });
 

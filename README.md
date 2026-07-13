@@ -17,6 +17,7 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 - Export order intents for manual execution
 - Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages vol-aware exits (TP/SL/model-flip/time), and tracks **monthly performance toward an aspirational 10× goal**
 - Browse curated **NASDAQ-100 + TSX-60** universe presets (`@nasdaq100`, `@tsx60`, `@broad`) or provide your own tickers
+- Use the **Analyst & Market-Driver Council** — value, growth, quality, momentum, sector analysts, retail, quant, institutional, and activist personas each vote; the final signal blends their views with the multi-factor engine
 - Measure the signal engine's **historical hit-rate** per ticker via the API / UI accuracy panel
 - Use the **Forge Desk web portal** at `/` — morning tickets, budget, monthly progress in the browser
 - Optional: SwiftUI sources under `ios/` (not required for the web portal)
@@ -95,13 +96,15 @@ API endpoints remain available:
 - `GET /portal/recommendations/{day}`
 - `GET /portal/trades/{year_month}`
 - `GET /portal/monthly/{year_month}` / `GET /portal/performance/{year_month}`
+- `GET /portal/accuracy/{ticker}` — measured historical hit-rate
+- `GET /portal/personas/{ticker}` — analyst & market-driver persona opinions
 
 ## How the daily portal works
 
 Each portal day:
 1. Adds the **daily budget** (e.g. $100) to deployable cash.
 2. Evaluates **exits** on existing positions: volatility-aware take-profit / stop-loss, **model-flip exits**, and time-based exits.
-3. Ranks **buy signals** with a multi-factor engine (momentum, trend, RSI, breakout, mean-reversion, volume, news sentiment, regime weights).
+3. Ranks **buy signals** with a multi-factor engine + an **Analyst & Market-Driver Council** (value, growth, quality, momentum, sector analysts, retail, quant, institutional, activist personas) that votes and blends into a consensus signal.
 4. Power-allocates today's budget toward the strongest confidence × score ideas (fee/slippage gated).
 5. Executes sells first (frees cash), then buys via the paper broker.
 6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).

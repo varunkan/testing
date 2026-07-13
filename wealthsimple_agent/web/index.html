@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Forge Desk — Double &amp; track</title>
+  <title>Forge Desk — Multi-persona trading signals</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -29,7 +29,7 @@
   <main id="desk" class="desk">
     <section class="panel goal-panel" aria-labelledby="goal-heading">
       <h2 id="goal-heading">Today’s plan</h2>
-      <p class="panel-sub">Default goal: <strong>double capital this month (100% ROI)</strong>. Aspirational — not guaranteed.</p>
+      <p class="panel-sub">Default goal: <strong>10× capital this month (1000% ROI)</strong>. Aspirational — not guaranteed.</p>
 
       <div class="goal-grid">
         <label class="field">
@@ -175,6 +175,20 @@
       </div>
       <div id="acc-result" class="acc-result">Run a measurement to see the engine’s past hit-rate.</div>
     </section>
+
+    <section class="panel personas-panel" aria-labelledby="personas-heading">
+      <h2 id="personas-heading">Analyst & market-driver council</h2>
+      <p class="panel-sub">Fundamental-style personas (value, growth, quality, sector analysts) and market-driver personas (retail, quant, institutional, activist) each evaluate the ticker and vote. The final signal blends their views with the multi-factor engine.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Ticker</span>
+          <input type="text" id="persona-ticker" value="AAPL" />
+        </label>
+        <button type="button" class="ghost" id="persona-run">Gather opinions</button>
+      </div>
+      <div id="persona-result" class="persona-result">Run a query to see how each persona evaluates the ticker.</div>
+      <div id="persona-list" class="persona-list"></div>
+    </section>
   </main>
 
   <dialog id="ticket-dialog" class="ticket-dialog">
@@ -187,6 +201,7 @@
       <p id="ticket-reason" class="ticket-reason"></p>
       <dl class="ticket-metrics" id="ticket-metrics"></dl>
       <p id="ticket-rationale" class="ticket-rationale"></p>
+      <div id="ticket-personas" class="persona-opinions" hidden></div>
       <p class="ticket-note">Execute as a paper fill on Forge Desk, or mark for manual placement in your brokerage app.</p>
       <button type="button" class="cta amber" id="test-trade-ticket">Execute test trade</button>
       <button type="button" class="ghost full" id="approve-ticket">Mark for manual placement</button>
