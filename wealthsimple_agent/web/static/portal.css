@@ -311,6 +311,19 @@ body {
   color: var(--deep-teal);
 }
 
+.auth-panel .actions {
+  margin-top: 1rem;
+}
+
+.auth-panel .check {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .persona-result {
   margin-top: 1rem;
   padding: 0.85rem 1rem;

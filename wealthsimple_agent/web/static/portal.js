@@ -34,6 +34,130 @@
     return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
   }
 
+  let apiKey = localStorage.getItem("forge_desk_api_key") || "";
+  let currentUser = null;
+
+  function authHeaders() {
+    return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+  }
+
+  function apiFetch(url, options = {}) {
+    const headers = { ...options.headers, ...authHeaders() };
+    return fetch(api(url), { ...options, headers });
+  }
+
+  function setAuthStatus(msg, isError = false) {
+    const el = $("auth-status");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("error", Boolean(isError));
+  }
+
+  async function fetchUser() {
+    if (!apiKey) return null;
+    try {
+      const res = await apiFetch("/portal/auth/me");
+      if (!res.ok) {
+        apiKey = "";
+        localStorage.removeItem("forge_desk_api_key");
+        return null;
+      }
+      currentUser = await res.json();
+      return currentUser;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function renderAuth() {
+    const forms = $("auth-forms");
+    const info = $("auth-info");
+    const usernameEl = $("auth-user");
+    const toggle = $("auto-invest-toggle");
+    if (!forms || !info) return;
+    if (currentUser) {
+      forms.hidden = true;
+      info.hidden = false;
+      usernameEl.textContent = currentUser.username;
+      toggle.checked = currentUser.auto_invest;
+    } else {
+      forms.hidden = false;
+      info.hidden = true;
+    }
+  }
+
+  async function login() {
+    const username = $("auth-username").value.trim();
+    const password = $("auth-password").value;
+    if (!username || !password) return setAuthStatus("Enter username and password.", true);
+    try {
+      const res = await apiFetch("/portal/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "Login failed");
+      apiKey = body.api_key;
+      localStorage.setItem("forge_desk_api_key", apiKey);
+      currentUser = body;
+      renderAuth();
+      refreshPaperViews();
+      setAuthStatus("Logged in.");
+    } catch (err) {
+      setAuthStatus(err.message || String(err), true);
+    }
+  }
+
+  async function signup() {
+    const username = $("auth-username").value.trim();
+    const password = $("auth-password").value;
+    if (!username || !password) return setAuthStatus("Enter username and password.", true);
+    try {
+      const res = await apiFetch("/portal/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "Signup failed");
+      apiKey = body.api_key;
+      localStorage.setItem("forge_desk_api_key", apiKey);
+      currentUser = body;
+      renderAuth();
+      refreshPaperViews();
+      setAuthStatus("Account created.");
+    } catch (err) {
+      setAuthStatus(err.message || String(err), true);
+    }
+  }
+
+  function logout() {
+    apiKey = "";
+    currentUser = null;
+    localStorage.removeItem("forge_desk_api_key");
+    renderAuth();
+    setAuthStatus("Logged out.");
+  }
+
+  async function toggleAutoInvest() {
+    if (!apiKey) return;
+    const checked = $("auto-invest-toggle").checked;
+    try {
+      const res = await apiFetch("/portal/auth/auto-invest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_invest: checked }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      const body = await res.json();
+      $("auto-invest-toggle").checked = body.auto_invest;
+      setAuthStatus(`Auto-invest ${body.auto_invest ? "on" : "off"}.`);
+    } catch (err) {
+      setAuthStatus(err.message || String(err), true);
+    }
+  }
+
   function plannedDays() {
     return 21;
   }
@@ -151,7 +275,8 @@
         const sideClass = String(t.side).toLowerCase() === "buy" ? "side-buy" : "side-sell";
         const pnl =
           t.pnl == null ? "" : ` · P&L ${Number(t.pnl) >= 0 ? "+" : ""}${money(t.pnl)}`;
-        return `<div class="trade-row"><span><span class="${sideClass}">${String(t.side).toUpperCase()}</span> <strong>${t.ticker}</strong></span><span>${Number(t.qty).toFixed(4)} @ ${money(t.px)}${pnl}</span></div>`;
+        const ts = t.ts ? new Date(t.ts).toLocaleString() : "";
+        return `<div class="trade-row"><span><span class="${sideClass}">${String(t.side).toUpperCase()}</span> <strong>${t.ticker}</strong></span><span>${Number(t.qty).toFixed(4)} @ ${money(t.px)}${pnl}</span><span style="font-size:0.8rem;color:var(--muted)">${ts}</span></div>`;
       })
       .join("");
   }
@@ -227,8 +352,8 @@
 
   async function refreshPaperViews() {
     const [portfolioRes, tradesRes, perfRes] = await Promise.all([
-      fetch(api("/portal/portfolio")),
-      fetch(api("/portal/trades")),
+      apiFetch("/portal/portfolio"),
+      apiFetch("/portal/trades"),
       fetch(
         api(`/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`)
       ),
@@ -239,7 +364,7 @@
   }
 
   async function executeTestTrade(payload) {
-    const res = await fetch(api("/portal/test-trade"), {
+    const res = await apiFetch("/portal/test-trade", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
@@ -255,7 +380,7 @@
     runDayBtn.disabled = true;
     setStatus("Researching morning ideas + paper fills…");
     try {
-      const res = await fetch(api("/portal/daily"), {
+      const res = await apiFetch("/portal/daily", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ config: configPayload() }),
@@ -368,7 +493,7 @@
     const starting = Number(dailyBudget.value) || 1000;
     if (!window.confirm(`Reset paper account to $${starting.toFixed(0)} cash and clear positions?`)) return;
     try {
-      const res = await fetch(api("/portal/paper/reset"), {
+      const res = await apiFetch("/portal/paper/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ starting_cash: starting }),
@@ -450,9 +575,36 @@
     }
   });
 
+  $("auth-login").addEventListener("click", login);
+  $("auth-signup").addEventListener("click", signup);
+  $("auth-logout").addEventListener("click", logout);
+  $("auto-invest-toggle").addEventListener("change", toggleAutoInvest);
+  $("auto-run-day").addEventListener("click", async () => {
+    runDayBtn.disabled = true;
+    $("auto-run-day").disabled = true;
+    setStatus("Auto-investing today on your behalf…");
+    try {
+      const res = await apiFetch("/portal/daily/auto", { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const report = await res.json();
+      renderRecommendations(report);
+      renderProgress(report.monthly_progress);
+      await refreshPaperViews();
+      setStatus("Auto-invest complete — paper fills & performance updated.");
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    } finally {
+      runDayBtn.disabled = false;
+      $("auto-run-day").disabled = false;
+    }
+  });
+
   updateTargetHint();
   recsList.innerHTML = `<p class="empty">Run a morning session to generate tickets.</p>`;
-  refreshPaperViews().catch(() => {});
+  fetchUser().then((u) => {
+    renderAuth();
+    if (u) refreshPaperViews().catch(() => {});
+  });
 
   // Universe preset chips
   document.querySelectorAll(".chip[data-preset]").forEach((btn) => {
@@ -471,7 +623,7 @@
     info.hidden = false;
     info.textContent = "Loading…";
     try {
-      const res = await fetch(api("/portal/universes"));
+      const res = await apiFetch("/portal/universes");
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
       const lines = Object.entries(d.presets || {})
@@ -480,6 +632,37 @@
       info.textContent = lines || "No presets.";
     } catch (err) {
       info.textContent = err.message || String(err);
+    }
+  });
+
+  $("daily-report-run").addEventListener("click", async () => {
+    const dayInput = $("daily-report-day").value;
+    const day = dayInput || new Date().toISOString().slice(0, 10);
+    const box = $("daily-report-result");
+    box.textContent = "Loading…";
+    try {
+      const res = await apiFetch(`/portal/daily-report/${day}`);
+      if (!res.ok) throw new Error(await res.text());
+      const d = await res.json();
+      const recs = (d.recommendations || []).map((r) => {
+        const side = String(r.action).toUpperCase();
+        return `<div class="persona-opinion-row"><span><strong>${side}</strong> ${r.ticker}</span><span>${money(r.quantity * 100)} notional · ${(Number(r.confidence) * 100).toFixed(0)}% conf</span></div>`;
+      }).join("") || "<p>No recommendations.</p>";
+      const trades = (d.trades || []).map((t) => {
+        const pnl = t.pnl == null ? "" : ` · P&L ${Number(t.pnl) >= 0 ? "+" : ""}${money(t.pnl)}`;
+        const ts = t.ts ? new Date(t.ts).toLocaleString() : "";
+        return `<div class="persona-opinion-row"><span><strong>${String(t.side).toUpperCase()}</strong> ${t.ticker}</span><span>${Number(t.qty).toFixed(4)} @ ${money(t.px)}${pnl}</span><span style="font-size:0.8rem;color:var(--muted)">${ts}</span></div>`;
+      }).join("") || "<p>No trades.</p>";
+      box.innerHTML = `
+        <p><strong>${d.day}</strong> — ${d.trade_count} trades — Realized P&L: ${money(d.realized_pnl_day)}</p>
+        <p><strong>Recommendations</strong></p>
+        ${recs}
+        <p><strong>Trades</strong></p>
+        ${trades}
+        <p style="font-size:0.85rem">${d.disclaimer}</p>
+      `;
+    } catch (err) {
+      box.textContent = err.message || String(err);
     }
   });
 })();

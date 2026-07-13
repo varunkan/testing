@@ -27,6 +27,36 @@
   </header>
 
   <main id="desk" class="desk">
+    <section class="panel auth-panel" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Account</h2>
+      <p class="panel-sub">Each user gets their own paper portfolio and daily trade history.</p>
+      <div id="auth-forms">
+        <div class="goal-grid">
+          <label class="field">
+            <span>Username</span>
+            <input type="text" id="auth-username" placeholder="your_username" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input type="password" id="auth-password" placeholder="••••••" />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" class="cta" id="auth-signup">Sign up</button>
+          <button type="button" class="ghost" id="auth-login">Log in</button>
+        </div>
+      </div>
+      <div id="auth-info" hidden>
+        <p>Logged in as <strong id="auth-user">—</strong></p>
+        <label class="check">
+          <input type="checkbox" id="auto-invest-toggle" />
+          Auto-invest every day on my behalf
+        </label>
+        <button type="button" class="ghost" id="auth-logout">Log out</button>
+      </div>
+      <p class="status" id="auth-status" role="status"></p>
+    </section>
+
     <section class="panel goal-panel" aria-labelledby="goal-heading">
       <h2 id="goal-heading">Today’s plan</h2>
       <p class="panel-sub">Default goal: <strong>10× capital this month (1000% ROI)</strong>. Aspirational — not guaranteed.</p>
@@ -63,6 +93,7 @@
 
       <div class="actions">
         <button type="button" class="cta" id="run-day">Run morning session</button>
+        <button type="button" class="cta amber" id="auto-run-day">Auto-invest today</button>
         <button type="button" class="ghost" id="refresh-month">Refresh performance</button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -174,6 +205,19 @@
         <button type="button" class="ghost" id="acc-run">Measure hit-rate</button>
       </div>
       <div id="acc-result" class="acc-result">Run a measurement to see the engine’s past hit-rate.</div>
+    </section>
+
+    <section class="panel daily-report-panel" aria-labelledby="daily-report-heading">
+      <h2 id="daily-report-heading">Daily profit &amp; loss</h2>
+      <p class="panel-sub">See exactly what the agent did on a given day and how much P&amp;L it generated.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Day</span>
+          <input type="date" id="daily-report-day" />
+        </label>
+        <button type="button" class="ghost" id="daily-report-run">Load daily report</button>
+      </div>
+      <div id="daily-report-result" class="acc-result">Pick a day to see recommendations, trades, and realized P&amp;L.</div>
     </section>
 
     <section class="panel personas-panel" aria-labelledby="personas-heading">
