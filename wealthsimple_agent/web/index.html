@@ -44,10 +44,20 @@
           </div>
         </label>
         <label class="field field-wide">
-          <span>Universe (comma-separated)</span>
-          <input type="text" id="universe" value="AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA, SPY, QQQ, IWM" />
+          <span>Universe (use @nasdaq100, @tsx60, @broad, or tickers)</span>
+          <input type="text" id="universe" value="@nasdaq100, @tsx60" />
         </label>
       </div>
+
+      <div class="preset-row">
+        <button type="button" class="chip" data-preset="@nasdaq100">@nasdaq100</button>
+        <button type="button" class="chip" data-preset="@tsx60">@tsx60</button>
+        <button type="button" class="chip" data-preset="@broad">@broad</button>
+        <button type="button" class="chip" data-preset="@nasdaq">@nasdaq</button>
+        <button type="button" class="chip" data-preset="@tsx">@tsx</button>
+        <button type="button" class="ghost chip-info" id="load-presets">Show preset sizes</button>
+      </div>
+      <p class="preset-info" id="preset-info" hidden></p>
 
       <p class="target-hint" id="target-hint">10× goal: earn ≈ $21,000 profit on $2,100 capital this month (aspirational).</p>
 

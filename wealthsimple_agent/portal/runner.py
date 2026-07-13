@@ -20,25 +20,10 @@ from wealthsimple_agent.strategy.advanced import (
     dynamic_exit_levels,
     estimate_expected_edge,
 )
+from wealthsimple_agent.strategy.universes import resolve_universe
 
 
-DEFAULT_UNIVERSE = [
-    "AAPL",
-    "MSFT",
-    "GOOGL",
-    "AMZN",
-    "NVDA",
-    "META",
-    "TSLA",
-    "AVGO",
-    "JPM",
-    "XOM",
-    "SPY",
-    "QQQ",
-    "IWM",
-    "GLD",
-    "TLT",
-]
+DEFAULT_UNIVERSE = ["@nasdaq100", "@tsx60"]
 
 
 @dataclass
@@ -254,10 +239,15 @@ def run_daily(
     # Fresh daily budget
     broker.add_cash(cfg.daily_budget)
 
+    # Resolve universe presets (e.g. "@nasdaq100", "@tsx60") into concrete tickers
+    universe = resolve_universe(cfg.universe)
+    if not universe:
+        universe = resolve_universe(DEFAULT_UNIVERSE)
+
     # Fetch data if not injected
     if bars_by_ticker is None:
         lookback = max(cfg.lookback_days, deps.settings.default_lookback_days)
-        bars_by_ticker = fetch_daily_bars(cfg.universe, lookback_days=lookback)
+        bars_by_ticker = fetch_daily_bars(universe, lookback_days=lookback)
     if news_by_ticker is None:
         items: list[NewsItem] = []
         for url in cfg.rss_urls:
@@ -265,10 +255,10 @@ def run_daily(
                 items.extend(fetch_rss(url))
             except Exception:
                 continue
-        news_by_ticker = {t: items for t in cfg.universe}
+        news_by_ticker = {t: items for t in universe}
 
     latest_px: dict[str, float] = {}
-    for t in cfg.universe:
+    for t in universe:
         px = latest_close(bars_by_ticker.get(t, []))
         if px is not None:
             latest_px[t] = px
@@ -311,7 +301,7 @@ def run_daily(
 
     # Buys: rank and allocate within available cash
     buy_signals = _ranked_buy_signals(
-        universe=cfg.universe,
+        universe=universe,
         bars_by_ticker=bars_by_ticker,
         news_by_ticker=news_by_ticker,
         cfg=cfg,

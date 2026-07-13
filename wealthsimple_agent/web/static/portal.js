@@ -377,4 +377,33 @@
   updateTargetHint();
   recsList.innerHTML = `<p class="empty">Run a morning session to generate tickets.</p>`;
   refreshPaperViews().catch(() => {});
+
+  // Universe preset chips
+  document.querySelectorAll(".chip[data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const preset = btn.getAttribute("data-preset");
+      const cur = universe.value.split(",").map((s) => s.trim()).filter(Boolean);
+      if (!cur.map((s) => s.toLowerCase()).includes(preset.toLowerCase())) {
+        cur.push(preset);
+      }
+      universe.value = cur.join(", ");
+    });
+  });
+
+  $("load-presets").addEventListener("click", async () => {
+    const info = $("preset-info");
+    info.hidden = false;
+    info.textContent = "Loading…";
+    try {
+      const res = await fetch("/portal/universes");
+      if (!res.ok) throw new Error(await res.text());
+      const d = await res.json();
+      const lines = Object.entries(d.presets || {})
+        .map(([k, v]) => `@${k}: ${v} tickers`)
+        .join(" · ");
+      info.textContent = lines || "No presets.";
+    } catch (err) {
+      info.textContent = err.message || String(err);
+    }
+  });
 })();

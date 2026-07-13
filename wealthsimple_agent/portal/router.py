@@ -157,6 +157,12 @@ def trades_recent(year_month: Optional[str] = None, db_path: str = str(_DEFAULT_
 
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars
 from wealthsimple_agent.strategy.accuracy import measure_accuracy
+from wealthsimple_agent.strategy.universes import list_presets, resolve_universe
+
+
+@router.get("/universes", summary="List available universe presets and sizes")
+def universes() -> dict:
+    return {"presets": list_presets()}
 
 
 @router.get("/accuracy/{ticker}", summary="Measured historical hit-rate for the signal engine")
