@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -24,6 +25,15 @@ _STATIC_DIR = _WEB_DIR / "static"
 app = FastAPI(title="Forge Desk — Trading Recommendation Portal", version="0.2.0")
 app.include_router(portal_router)
 
+# Allow the Vercel-hosted frontend (or any configured origin) to call the API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 if _STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
@@ -31,6 +41,11 @@ if _STATIC_DIR.is_dir():
 @app.get("/", include_in_schema=False)
 def portal_home() -> FileResponse:
     return FileResponse(_WEB_DIR / "index.html")
+
+
+@app.get("/config.js", include_in_schema=False)
+def portal_config() -> FileResponse:
+    return FileResponse(_WEB_DIR / "config.js")
 
 
 class SignalsRequest(BaseModel):

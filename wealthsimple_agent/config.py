@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     max_daily_loss_pct: float = Field(default=0.03, ge=0.0, le=1.0)
     per_trade_risk_pct: float = Field(default=0.01, ge=0.0, le=1.0)
 
+    # Deployment
+    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+
 
 def get_settings() -> Settings:
     return Settings()
