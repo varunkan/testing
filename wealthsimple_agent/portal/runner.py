@@ -44,7 +44,7 @@ DEFAULT_UNIVERSE = [
 @dataclass
 class PortalConfig:
     daily_budget: float = 100.0
-    monthly_target_pct: float = 1.0  # double capital this month (aspirational, NOT guaranteed)
+    monthly_target_pct: float = 10.0  # 10x capital this month (aspirational, NOT guaranteed)
     take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02
     max_hold_days: int = 7

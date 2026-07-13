@@ -25,7 +25,7 @@ _DEFAULT_DB = Path("portal.db")
 
 class PortalConfigModel(BaseModel):
     daily_budget: float = Field(default=100.0, gt=0)
-    monthly_target_pct: float = Field(default=1.0, ge=0.0, le=2.0)
+    monthly_target_pct: float = Field(default=10.0, ge=0.0, le=10.0)
     take_profit_pct: float = Field(default=0.04, gt=0.0)
     stop_loss_pct: float = Field(default=0.02, gt=0.0)
     max_hold_days: int = Field(default=7, ge=1, le=30)
@@ -80,7 +80,7 @@ def monthly(
     year_month: str,
     db_path: str = str(_DEFAULT_DB),
     daily_budget: float = 100.0,
-    target_pct: float = 1.0,
+    target_pct: float = 10.0,
 ) -> dict:
     with Store(db_path) as store:
         from wealthsimple_agent.portal.monthly import compute_monthly_progress
@@ -117,7 +117,7 @@ def performance(
     year_month: str,
     db_path: str = str(_DEFAULT_DB),
     daily_budget: float = 100.0,
-    target_pct: float = 1.0,
+    target_pct: float = 10.0,
 ) -> dict:
     return monthly(year_month, db_path=db_path, daily_budget=daily_budget, target_pct=target_pct)
 

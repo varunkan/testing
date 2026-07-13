@@ -45,7 +45,7 @@ def test_monthly_progress_math():
     assert abs(p.progress_pct - 0.20) < 1e-9
     assert abs(p.roi_pct - 0.60) < 1e-9
     assert abs(p.win_rate - 0.60) < 1e-9
-    assert p.as_dict()["goal_label"] == "double"
+    assert p.as_dict()["goal_label"] == "1×"
 
 
 def test_run_daily_persists_and_progresses(tmp_path: Path):
@@ -86,7 +86,6 @@ def test_run_daily_persists_and_progresses(tmp_path: Path):
     total_notional = sum(r.quantity * 100.0 for r in buys)  # rough notional check
     assert total_notional <= 105.0  # within budget + small tolerance
 
-    # Double goal: target profit = 100% * 100 * 21 = 2100
     assert report.monthly_progress["target_profit"] == 2100.0
     assert report.monthly_progress["target_pct"] == 1.0
     assert report.monthly_progress["days_run"] == 1

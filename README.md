@@ -15,7 +15,7 @@ Wealthsimple execution is implemented as a **stub connector** because fully auto
 - Run the agent locally to generate **buy/sell intents**
 - Run **paper trading** and a simple **daily-bar backtest**
 - Export order intents for manual execution
-- Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages exits (take-profit / stop-loss / time), and tracks **monthly progress toward an aspirational target**
+- Run the **daily recommendation portal**: every morning it deploys a fixed budget (e.g. $100/day) across ranked buy ideas, manages vol-aware exits (TP/SL/model-flip/time), and tracks **monthly performance toward an aspirational 10× goal**
 - Use the **Forge Desk web portal** at `/` — morning tickets, budget, monthly progress in the browser
 - Optional: SwiftUI sources under `ios/` (not required for the web portal)
 
@@ -103,19 +103,11 @@ Each portal day:
 6. Persists broker state, recommendations, and trades to SQLite (`portal.db`).
 7. Reports **monthly performance** toward the doubling goal.
 
-The monthly target defaults to **double capital this month (100% ROI)**:
-`target_profit = 1.0 × daily_budget × planned_trading_days`
-(e.g. $100 × 21 days = $2,100 capital → aim for +$2,100 profit).
+The monthly goal defaults to **10× capital this month (1000% ROI)**:
+`target_profit = 10.0 × daily_budget × planned_trading_days`
+(e.g. $100 × 21 days = $2,100 capital → aim for +$21,000 profit).
 
-Performance tracking includes:
-- realized P&L after fees
-- capital invested
-- ROI %
-- win rate / sell count
-- equity & cash
-- progress % toward the doubling goal
-
-**This goal is aspirational and extremely aggressive — not guaranteed.**
+**This goal is extremely aspirational and not guaranteed.**
 
 ## Safety / important notes
 

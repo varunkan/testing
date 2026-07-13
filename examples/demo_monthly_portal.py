@@ -53,7 +53,7 @@ def main() -> None:
 
     cfg = PortalConfig(
         daily_budget=100.0,
-        monthly_target_pct=1.0,  # double
+        monthly_target_pct=10.0,  # 10x
         take_profit_pct=0.03,
         stop_loss_pct=0.02,
         max_hold_days=5,
@@ -68,7 +68,7 @@ def main() -> None:
 
     day = START
     trading_day_count = 0
-    print(f"=== Portal demo: ${cfg.daily_budget}/day, DOUBLE goal ({cfg.monthly_target_pct:.0%}) ===\n")
+    print(f"=== Portal demo: ${cfg.daily_budget}/day, 10× goal ({cfg.monthly_target_pct:.0%}) ===\n")
 
     with Store(db) as store:
         for _ in range(TRADING_DAYS):
@@ -87,8 +87,8 @@ def main() -> None:
             mp = report.monthly_progress
             print(
                 f"Day {trading_day_count:2d} ({day}) | recs: {recs or '-'} | "
-                f"P&L ${mp['realized_pnl']:.2f} / ${mp['target_profit']:.0f} "
-                f"({mp['progress_pct']*100:.1f}% of double) | ROI {mp['roi_pct']*100:.1f}%"
+            f"P&L ${mp['realized_pnl']:.2f} / ${mp['target_profit']:.0f} "
+            f"({mp['progress_pct']*100:.1f}% of 10×) | ROI {mp['roi_pct']*100:.1f}%"
             )
             day += timedelta(days=1)
 
@@ -97,16 +97,16 @@ def main() -> None:
         days_run = store.days_run_in_month(year_month=year_month)
 
     target = cfg.monthly_target_pct * cfg.daily_budget * cfg.planned_trading_days_per_month
-    print("\n=== Final performance (double goal) ===")
+    print("\n=== Final performance (10× goal) ===")
     print(json.dumps(
         {
             "month": year_month,
             "days_run": days_run,
             "daily_budget": cfg.daily_budget,
-            "goal": "double (100% ROI on planned capital)",
+            "goal": "10× (1000% ROI on planned capital)",
             "target_profit": target,
             "realized_pnl": round(realized, 2),
-            "progress_pct_of_double": round(realized / target * 100, 2) if target else 0,
+            "progress_pct_of_10x": round(realized / target * 100, 2) if target else 0,
             "disclaimer": "Aspirational target, not guaranteed. Paper trading only.",
         },
         indent=2,

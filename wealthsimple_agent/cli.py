@@ -163,7 +163,7 @@ app.add_typer(portal_app, name="portal")
 @portal_app.command("daily")
 def portal_daily(
     daily_budget: float = typer.Option(100.0, "--daily-budget", min=1.0),
-    monthly_target_pct: float = typer.Option(1.0, "--monthly-target-pct", min=0.0, max=2.0),
+    monthly_target_pct: float = typer.Option(10.0, "--monthly-target-pct", min=0.0, max=10.0),
     take_profit_pct: float = typer.Option(0.03, "--take-profit-pct", min=0.001),
     stop_loss_pct: float = typer.Option(0.02, "--stop-loss-pct", min=0.001),
     max_hold_days: int = typer.Option(5, "--max-hold-days", min=1, max=30),
@@ -203,7 +203,7 @@ def portal_monthly(
         progress = compute_monthly_progress(
             year_month=year_month,
             daily_budget=daily_budget,
-            target_pct=1.0,
+            target_pct=10.0,
             planned_trading_days=21,
             realized_pnl=realized,
             days_run=days_run,

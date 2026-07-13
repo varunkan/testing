@@ -45,7 +45,7 @@ class MonthlyProgress:
             "win_rate": self.win_rate,
             "equity": self.equity,
             "cash": self.cash,
-            "goal_label": "double" if abs(self.target_pct - 1.0) < 1e-9 else f"{self.target_pct:.0%}",
+            "goal_label": "10×" if abs(self.target_pct - 10.0) < 1e-9 else ("5×" if abs(self.target_pct - 5.0) < 1e-9 else ("2×" if abs(self.target_pct - 2.0) < 1e-9 else ("1×" if abs(self.target_pct - 1.0) < 1e-9 else f"{self.target_pct:.0%}"))),
             "disclaimer": "Aspirational target, not guaranteed. Past paper results do not predict future returns.",
         }
 
