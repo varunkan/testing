@@ -33,6 +33,7 @@ class PortalConfigModel(BaseModel):
     min_confidence_to_buy: float = Field(default=0.55, ge=0.0, le=1.0)
     planned_trading_days_per_month: int = Field(default=21, ge=1, le=31)
     lookback_days: int = Field(default=90, ge=20, le=365)
+    use_persona_council: bool = Field(default=True)
     universe: list[str] = Field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     rss_urls: list[str] = Field(default_factory=list)
     db_path: str = Field(default=str(_DEFAULT_DB))
@@ -55,6 +56,7 @@ def run_daily_endpoint(req: DailyRunRequest = Body(default_factory=DailyRunReque
         min_confidence_to_buy=req.config.min_confidence_to_buy,
         planned_trading_days_per_month=req.config.planned_trading_days_per_month,
         lookback_days=req.config.lookback_days,
+        use_persona_council=req.config.use_persona_council,
         universe=[t.strip().upper() for t in req.config.universe if t.strip()],
         rss_urls=list(req.config.rss_urls),
     )
@@ -157,6 +159,7 @@ def trades_recent(year_month: Optional[str] = None, db_path: str = str(_DEFAULT_
 
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars
 from wealthsimple_agent.strategy.accuracy import measure_accuracy
+from wealthsimple_agent.strategy.personas import gather_opinions
 from wealthsimple_agent.strategy.universes import list_presets, resolve_universe
 
 
@@ -188,3 +191,27 @@ def accuracy(
         min_lookback=40,
     )
     return rep.__dict__
+
+
+@router.get("/personas/{ticker}", summary="Analyst & market-driver persona opinions for a ticker")
+def personas(
+    ticker: str,
+    lookback_days: int = 90,
+) -> dict:
+    t = ticker.strip().upper()
+    bars = fetch_daily_bars([t], lookback_days=lookback_days).get(t, [])
+    if not bars or len(bars) < 30:
+        return {
+            "ticker": t,
+            "opinions": [],
+            "disclaimer": "Not enough history to gather persona opinions yet.",
+        }
+    opinions = gather_opinions(ticker=t, bars=bars, news=[])
+    return {
+        "ticker": t,
+        "opinions": [op.as_dict() for op in opinions],
+        "disclaimer": (
+            "Personas are stylized interpretations of price/volume/news factors. "
+            "They do not replace real fundamental analysis."
+        ),
+    }

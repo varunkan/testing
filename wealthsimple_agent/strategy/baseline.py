@@ -23,3 +23,24 @@ def generate_signal(
         news=news,
         trade_score_threshold=trade_score_threshold,
     )
+
+
+def generate_consensus_signal(
+    *,
+    ticker: str,
+    bars: list[PriceBar],
+    news: list[NewsItem],
+    trade_score_threshold: float = 0.18,
+) -> Signal:
+    """
+    Consensus signal generator: blends the advanced engine with a council of
+    sector analysts and market-driver personas.
+    """
+    from wealthsimple_agent.strategy.personas import consensus_signal
+
+    return consensus_signal(
+        ticker=ticker,
+        bars=bars,
+        news=news,
+        trade_score_threshold=trade_score_threshold,
+    )

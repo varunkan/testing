@@ -14,12 +14,13 @@ from wealthsimple_agent.news.rss import fetch_rss
 from wealthsimple_agent.portal.monthly import compute_monthly_progress
 from wealthsimple_agent.portal.store import Store
 from wealthsimple_agent.risk import RiskLimits
-from wealthsimple_agent.strategy.baseline import generate_signal
+from wealthsimple_agent.strategy.baseline import generate_consensus_signal, generate_signal
 from wealthsimple_agent.strategy.advanced import (
     compute_factors,
     dynamic_exit_levels,
     estimate_expected_edge,
 )
+from wealthsimple_agent.strategy.personas import gather_opinions
 from wealthsimple_agent.strategy.universes import resolve_universe
 
 
@@ -37,6 +38,7 @@ class PortalConfig:
     min_confidence_to_buy: float = 0.55
     planned_trading_days_per_month: int = 21
     lookback_days: int = 90
+    use_persona_council: bool = True
     universe: list[str] = field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     rss_urls: list[str] = field(default_factory=list)
 
@@ -53,6 +55,7 @@ class Recommendation:
     estimated_fees: float
     rationale: str
     reason: str  # e.g. "top-ranked buy", "take-profit exit", "stop-loss exit", "time exit"
+    persona_opinions: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -66,6 +69,7 @@ class Recommendation:
             "estimated_fees": self.estimated_fees,
             "rationale": self.rationale,
             "reason": self.reason,
+            "persona_opinions": self.persona_opinions,
         }
 
 
@@ -169,10 +173,11 @@ def _ranked_buy_signals(
     cfg: PortalConfig,
 ) -> list[Signal]:
     sigs: list[Signal] = []
+    signal_fn = generate_consensus_signal if cfg.use_persona_council else generate_signal
     for t in universe:
         bars = bars_by_ticker.get(t, [])
         news = news_by_ticker.get(t, [])
-        sig = generate_signal(ticker=t, bars=bars, news=news)
+        sig = signal_fn(ticker=t, bars=bars, news=news)
         if sig.action == "buy" and sig.confidence >= cfg.min_confidence_to_buy:
             sigs.append(sig)
     # Rank by confidence-weighted score (edge proxy)
@@ -325,6 +330,16 @@ def run_daily(
         # Skip buys that don't clear costs with margin.
         if (px * qty) * edge <= fees * 1.15:
             continue
+        opinions: list[dict] = []
+        if cfg.use_persona_council:
+            opinions = [
+                op.as_dict()
+                for op in gather_opinions(
+                    ticker=sig.ticker,
+                    bars=bars_by_ticker.get(sig.ticker, []),
+                    news=news_by_ticker.get(sig.ticker, []),
+                )
+            ]
         intent = OrderIntent(
             ticker=sig.ticker,
             action="buy",
@@ -346,7 +361,8 @@ def run_daily(
                 expected_edge=edge,
                 estimated_fees=fees,
                 rationale=sig.rationale,
-                reason="top-ranked advanced signal within daily budget",
+                reason="top-ranked consensus signal within daily budget" if cfg.use_persona_council else "top-ranked advanced signal within daily budget",
+                persona_opinions=opinions,
             )
         )
 
