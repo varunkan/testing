@@ -160,6 +160,13 @@ portal_app = typer.Typer(add_completion=False, help="Daily recommendation portal
 app.add_typer(portal_app, name="portal")
 
 
+def _get_or_create_cli_user(store: Store, username: str, password: str) -> int:
+    try:
+        return store.authenticate_user(username=username, password=password)["id"]
+    except ValueError:
+        return store.create_user(username=username, password=password)["id"]
+
+
 @portal_app.command("daily")
 def portal_daily(
     daily_budget: float = typer.Option(100.0, "--daily-budget", min=1.0),
@@ -172,6 +179,8 @@ def portal_daily(
     universe: list[str] = typer.Option(None, "--universe", help="Tickers to consider"),
     rss_url: list[str] = typer.Option(None, "--rss-url", help="RSS feed URL(s)"),
     db_path: str = typer.Option("portal.db", "--db-path"),
+    username: str = typer.Option("cli_user", "--username"),
+    password: str = typer.Option("cli_password", "--password"),
 ):
     cfg = PortalConfig(
         daily_budget=daily_budget,
@@ -185,7 +194,8 @@ def portal_daily(
         rss_urls=list(rss_url or []),
     )
     with Store(db_path) as store:
-        report = run_daily(cfg=cfg, store=store)
+        user_id = _get_or_create_cli_user(store, username=username, password=password)
+        report = run_daily(user_id=user_id, cfg=cfg, store=store)
     rprint(json.dumps(report.as_dict(), indent=2))
 
 
@@ -194,12 +204,17 @@ def portal_monthly(
     year_month: str = typer.Option(..., "--month", help="YYYY-MM"),
     daily_budget: float = typer.Option(100.0, "--daily-budget", min=1.0),
     db_path: str = typer.Option("portal.db", "--db-path"),
+    username: str = typer.Option("cli_user", "--username"),
+    password: str = typer.Option("cli_password", "--password"),
 ):
     from wealthsimple_agent.portal.monthly import compute_monthly_progress
 
     with Store(db_path) as store:
-        realized = store.realized_pnl_in_month(year_month=year_month)
-        days_run = store.days_run_in_month(year_month=year_month)
+        user_id = _get_or_create_cli_user(store, username=username, password=password)
+        realized = store.realized_pnl_in_month(user_id=user_id, year_month=year_month)
+        days_run = store.days_run_in_month(user_id=user_id, year_month=year_month)
+        sell_count, win_count = store.sell_trade_stats(user_id=user_id, year_month=year_month)
+        capital = store.capital_added_in_month(user_id=user_id, year_month=year_month, daily_budget=daily_budget)
         progress = compute_monthly_progress(
             year_month=year_month,
             daily_budget=daily_budget,
@@ -207,8 +222,11 @@ def portal_monthly(
             planned_trading_days=21,
             realized_pnl=realized,
             days_run=days_run,
+            capital_invested=capital,
+            trades_count=sell_count,
+            winning_trades=win_count,
         )
-        trades = store.trades_in_month(year_month=year_month)
+        trades = store.trades_in_month(user_id=user_id, year_month=year_month)
     rprint(
         json.dumps(
             {
@@ -225,11 +243,14 @@ def portal_monthly(
 def portal_history(
     day: str = typer.Option(..., "--day", help="YYYY-MM-DD"),
     db_path: str = typer.Option("portal.db", "--db-path"),
+    username: str = typer.Option("cli_user", "--username"),
+    password: str = typer.Option("cli_password", "--password"),
 ):
     from datetime import date as _date
 
     with Store(db_path) as store:
-        recs = store.recommendations_for_day(day=_date.fromisoformat(day))
+        user_id = _get_or_create_cli_user(store, username=username, password=password)
+        recs = store.recommendations_for_day(user_id=user_id, day=_date.fromisoformat(day))
     rprint(json.dumps(recs, indent=2))
 
 

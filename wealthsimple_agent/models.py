@@ -58,3 +58,25 @@ class PortfolioSnapshot(BaseModel):
     equity: float
     positions: list[Position]
 
+
+class User(BaseModel):
+    id: int
+    username: str
+    api_key: str
+    auto_invest: bool = False
+    created_at: datetime
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=40)
+    password: str = Field(min_length=6)
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class UserSettings(BaseModel):
+    auto_invest: bool = False
+

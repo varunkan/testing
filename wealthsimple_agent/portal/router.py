@@ -4,23 +4,26 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
-from wealthsimple_agent.portal.runner import DEFAULT_UNIVERSE, PortalConfig, run_daily
-from wealthsimple_agent.portal.store import Store
+from wealthsimple_agent.models import UserCreate, UserLogin, UserSettings
+from wealthsimple_agent.portal.monthly import compute_monthly_progress
 from wealthsimple_agent.portal.paper_trading import (
-    ResetPaperRequest,
     PaperTradeRequest,
+    ResetPaperRequest,
     execute_test_trade,
     portfolio_snapshot,
     reset_paper_account,
 )
+from wealthsimple_agent.portal.runner import DEFAULT_UNIVERSE, PortalConfig, run_daily
+from wealthsimple_agent.portal.store import Store
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
-
 _DEFAULT_DB = Path("portal.db")
+_api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
 
 
 class PortalConfigModel(BaseModel):
@@ -44,8 +47,87 @@ class DailyRunRequest(BaseModel):
     config: PortalConfigModel = Field(default_factory=PortalConfigModel)
 
 
-@router.post("/daily", summary="Run one portal trading day (recommendations + paper execution)")
-def run_daily_endpoint(req: DailyRunRequest = Body(default_factory=DailyRunRequest)) -> dict:
+def _extract_api_key(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return authorization.strip()
+
+
+def _get_store(db_path: str) -> Store:
+    return Store(db_path)
+
+
+def _get_current_user(
+    authorization: Optional[str] = Security(_api_key_header),
+    db_path: str = str(_DEFAULT_DB),
+) -> dict:
+    key = _extract_api_key(authorization)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header. Use Bearer <api_key>.",
+        )
+    with _get_store(db_path) as store:
+        user = store.get_user_by_api_key(api_key=key)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key.",
+        )
+    return user
+
+
+CurrentUser = Depends(_get_current_user)
+
+
+# ---- Auth ----
+
+@router.post("/auth/signup", summary="Create a new user account")
+def signup(req: UserCreate, db_path: str = str(_DEFAULT_DB)) -> dict:
+    try:
+        with _get_store(db_path) as store:
+            user = store.create_user(username=req.username, password=req.password)
+        return user
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/auth/login", summary="Log in and get API key")
+def login(req: UserLogin, db_path: str = str(_DEFAULT_DB)) -> dict:
+    try:
+        with _get_store(db_path) as store:
+            user = store.authenticate_user(username=req.username, password=req.password)
+        return user
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.get("/auth/me", summary="Current user info")
+def me(user: dict = CurrentUser) -> dict:
+    return user
+
+
+@router.post("/auth/auto-invest", summary="Toggle auto-invest for the current user")
+def set_auto_invest(
+    req: UserSettings,
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+) -> dict:
+    with _get_store(db_path) as store:
+        store.set_auto_invest(user_id=user["id"], auto_invest=req.auto_invest)
+        updated = store.get_user_by_api_key(api_key=user["api_key"])
+    return {"auto_invest": updated["auto_invest"]}
+
+
+# ---- Daily run ----
+
+@router.post("/daily", summary="Run one portal trading day for the current user")
+def run_daily_endpoint(
+    req: DailyRunRequest = Body(default_factory=DailyRunRequest),
+    user: dict = CurrentUser,
+) -> dict:
     cfg = PortalConfig(
         daily_budget=req.config.daily_budget,
         monthly_target_pct=req.config.monthly_target_pct,
@@ -60,43 +142,109 @@ def run_daily_endpoint(req: DailyRunRequest = Body(default_factory=DailyRunReque
         universe=[t.strip().upper() for t in req.config.universe if t.strip()],
         rss_urls=list(req.config.rss_urls),
     )
-    with Store(req.config.db_path) as store:
-        report = run_daily(cfg=cfg, store=store, day=req.day)
+    with _get_store(req.config.db_path) as store:
+        report = run_daily(user_id=user["id"], cfg=cfg, store=store, day=req.day)
     return report.as_dict()
 
 
-@router.get("/recommendations/{day}", summary="List recommendations for a given day")
-def recommendations(day: date, db_path: str = str(_DEFAULT_DB)) -> list[dict]:
-    with Store(db_path) as store:
-        return store.recommendations_for_day(day=day)
-
-
-@router.get("/trades/{year_month}", summary="List trades for a given YYYY-MM month")
-def trades(year_month: str, db_path: str = str(_DEFAULT_DB)) -> list[dict]:
-    with Store(db_path) as store:
-        return store.trades_in_month(year_month=year_month)
-
-
-@router.get("/monthly/{year_month}", summary="Monthly performance vs aspirational target")
-def monthly(
-    year_month: str,
+@router.post("/daily/auto", summary="Auto-run daily session for the current user")
+def run_daily_auto(
+    user: dict = CurrentUser,
     db_path: str = str(_DEFAULT_DB),
     daily_budget: float = 100.0,
     target_pct: float = 10.0,
 ) -> dict:
-    with Store(db_path) as store:
-        from wealthsimple_agent.portal.monthly import compute_monthly_progress
+    cfg = PortalConfig(
+        daily_budget=daily_budget,
+        monthly_target_pct=target_pct,
+    )
+    with _get_store(db_path) as store:
+        report = run_daily(user_id=user["id"], cfg=cfg, store=store)
+    return report.as_dict()
 
-        realized = store.realized_pnl_in_month(year_month=year_month)
-        days_run = store.days_run_in_month(year_month=year_month)
-        sell_count, win_count = store.sell_trade_stats(year_month=year_month)
-        capital = store.capital_added_in_month(year_month=year_month, daily_budget=daily_budget)
-        state = store.load_broker_state()
+
+# ---- Recommendations & trades ----
+
+@router.get("/recommendations/{day}", summary="List recommendations for a given day")
+def recommendations(
+    day: date,
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+) -> list[dict]:
+    with _get_store(db_path) as store:
+        return store.recommendations_for_day(user_id=user["id"], day=day)
+
+
+@router.get("/trades/{year_month}", summary="List trades for a given YYYY-MM month")
+def trades(
+    year_month: str,
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+) -> list[dict]:
+    with _get_store(db_path) as store:
+        return store.trades_in_month(user_id=user["id"], year_month=year_month)
+
+
+@router.get("/daily-report/{day}", summary="Full daily report: recommendations + trades + P&L")
+def daily_report(
+    day: date,
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+) -> dict:
+    with _get_store(db_path) as store:
+        recs = store.recommendations_for_day(user_id=user["id"], day=day)
+        trades = [
+            t for t in store.trades_in_month(user_id=user["id"], year_month=day.strftime("%Y-%m"))
+            if t["day"] == day.isoformat()
+        ]
+        total_pnl = sum(float(t["pnl"] or 0) for t in trades)
+        return {
+            "day": day.isoformat(),
+            "user_id": user["id"],
+            "username": user["username"],
+            "recommendations": recs,
+            "trades": trades,
+            "trade_count": len(trades),
+            "realized_pnl_day": total_pnl,
+            "disclaimer": "Paper trading only. P&L includes realized sell trades for the day.",
+        }
+
+
+@router.get("/trades", summary="Recent paper trades for current user (optional month filter)")
+def trades_recent(
+    user: dict = CurrentUser,
+    year_month: Optional[str] = None,
+    db_path: str = str(_DEFAULT_DB),
+    limit: int = 50,
+) -> list[dict]:
+    ym = year_month or date.today().strftime("%Y-%m")
+    with _get_store(db_path) as store:
+        rows = store.trades_in_month(user_id=user["id"], year_month=ym)
+    return rows[-max(1, min(limit, 500)) :]
+
+
+# ---- Performance ----
+
+@router.get("/monthly/{year_month}", summary="Monthly performance vs aspirational target")
+def monthly(
+    year_month: str,
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+    daily_budget: float = 100.0,
+    target_pct: float = 10.0,
+) -> dict:
+    with _get_store(db_path) as store:
+        realized = store.realized_pnl_in_month(user_id=user["id"], year_month=year_month)
+        days_run = store.days_run_in_month(user_id=user["id"], year_month=year_month)
+        sell_count, win_count = store.sell_trade_stats(user_id=user["id"], year_month=year_month)
+        capital = store.capital_added_in_month(
+            user_id=user["id"], year_month=year_month, daily_budget=daily_budget
+        )
+        state = store.load_broker_state(user_id=user["id"])
         equity = 0.0
         cash = 0.0
         if state:
             cash = float(state["cash"])
-            # Mark-to-market without live prices: cash + cost basis of positions as floor.
             equity = cash + sum(float(p.quantity) * float(p.avg_price) for p in state["positions"])
         progress = compute_monthly_progress(
             year_month=year_month,
@@ -117,45 +265,47 @@ def monthly(
 @router.get("/performance/{year_month}", summary="Alias for monthly performance tracking")
 def performance(
     year_month: str,
+    user: dict = CurrentUser,
     db_path: str = str(_DEFAULT_DB),
     daily_budget: float = 100.0,
     target_pct: float = 10.0,
 ) -> dict:
-    return monthly(year_month, db_path=db_path, daily_budget=daily_budget, target_pct=target_pct)
+    return monthly(year_month, user=user, db_path=db_path, daily_budget=daily_budget, target_pct=target_pct)
 
 
 # ---- Paper / test trading ----
 
-@router.get("/portfolio", summary="Current paper (test) portfolio")
-def get_portfolio(db_path: str = str(_DEFAULT_DB)) -> dict:
-    with Store(db_path) as store:
-        return portfolio_snapshot(store)
+@router.get("/portfolio", summary="Current paper (test) portfolio for the current user")
+def get_portfolio(
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+) -> dict:
+    with _get_store(db_path) as store:
+        return portfolio_snapshot(store, user_id=user["id"])
 
 
-@router.post("/test-trade", summary="Execute a single paper/test trade")
-def test_trade(req: PaperTradeRequest) -> dict:
+@router.post("/test-trade", summary="Execute a single paper/test trade for the current user")
+def test_trade(
+    req: PaperTradeRequest,
+    user: dict = CurrentUser,
+) -> dict:
     try:
-        with Store(req.db_path) as store:
-            return execute_test_trade(store, req)
+        with _get_store(req.db_path) as store:
+            return execute_test_trade(store, user_id=user["id"], req=req)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/paper/reset", summary="Reset paper account cash/positions")
-def paper_reset(req: ResetPaperRequest = Body(default_factory=ResetPaperRequest)) -> dict:
-    with Store(req.db_path) as store:
-        return reset_paper_account(store, starting_cash=req.starting_cash)
+@router.post("/paper/reset", summary="Reset paper account cash/positions for the current user")
+def paper_reset(
+    req: ResetPaperRequest = Body(default_factory=ResetPaperRequest),
+    user: dict = CurrentUser,
+) -> dict:
+    with _get_store(req.db_path) as store:
+        return reset_paper_account(store, user_id=user["id"], starting_cash=req.starting_cash)
 
 
-@router.get("/trades", summary="Recent paper trades (optional month filter)")
-def trades_recent(year_month: Optional[str] = None, db_path: str = str(_DEFAULT_DB), limit: int = 50) -> list[dict]:
-    ym = year_month or date.today().strftime("%Y-%m")
-    with Store(db_path) as store:
-        rows = store.trades_in_month(year_month=ym)
-    return rows[-max(1, min(limit, 500)) :]
-
-
-# ---- Accuracy / honesty ----
+# ---- Accuracy / personas / universes ----
 
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars
 from wealthsimple_agent.strategy.accuracy import measure_accuracy

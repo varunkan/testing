@@ -38,17 +38,18 @@ def _slippage() -> float:
     return float(get_settings().slippage_bps)
 
 
-def load_paper_broker(store: Store, *, starting_cash: float = 0.0) -> PaperBroker:
+def load_paper_broker(store: Store, *, user_id: int, starting_cash: float = 0.0) -> PaperBroker:
     broker = PaperBroker(starting_cash=starting_cash, fee_model=_fee_model(), slippage_bps=_slippage())
-    state = store.load_broker_state()
+    state = store.load_broker_state(user_id=user_id)
     if state:
         broker.hydrate(cash=state["cash"], realized_pnl=state["realized_pnl"], positions=state["positions"])
     return broker
 
 
-def persist_broker(store: Store, broker: PaperBroker, *, latest_px: dict[str, float]) -> None:
+def persist_broker(store: Store, *, user_id: int, broker: PaperBroker, latest_px: dict[str, float]) -> None:
     portfolio = broker.get_portfolio(latest_price_by_ticker=latest_px)
     store.save_broker_state(
+        user_id=user_id,
         cash=portfolio.cash,
         realized_pnl=broker.realized_pnl,
         positions=portfolio.positions,
@@ -66,9 +67,9 @@ def resolve_price(ticker: str, *, override: Optional[float] = None) -> float:
     return float(px)
 
 
-def portfolio_snapshot(store: Store, *, price_overrides: Optional[dict[str, float]] = None) -> dict:
-    broker = load_paper_broker(store)
-    state = store.load_broker_state()
+def portfolio_snapshot(store: Store, *, user_id: int, price_overrides: Optional[dict[str, float]] = None) -> dict:
+    broker = load_paper_broker(store, user_id=user_id)
+    state = store.load_broker_state(user_id=user_id)
     tickers = [p.ticker for p in (state["positions"] if state else [])]
     latest_px: dict[str, float] = dict(price_overrides or {})
     missing = [t for t in tickers if t not in latest_px]
@@ -96,20 +97,20 @@ def portfolio_snapshot(store: Store, *, price_overrides: Optional[dict[str, floa
     }
 
 
-def execute_test_trade(store: Store, req: PaperTradeRequest) -> dict:
+def execute_test_trade(store: Store, *, user_id: int, req: PaperTradeRequest) -> dict:
     """
-    Execute a single paper (test) trade against the persisted PaperBroker state.
+    Execute a single paper (test) trade for a specific user.
     """
     ticker = req.ticker.strip().upper()
     action = req.action.lower()
     qty = float(req.quantity)
     px = resolve_price(ticker, override=req.price)
 
-    broker = load_paper_broker(store)
+    broker = load_paper_broker(store, user_id=user_id)
     latest_px = {ticker: px}
 
     # Include marks for other open positions so equity stays sensible after save.
-    state = store.load_broker_state()
+    state = store.load_broker_state(user_id=user_id)
     if state:
         for p in state["positions"]:
             latest_px.setdefault(p.ticker, float(p.avg_price))
@@ -131,7 +132,8 @@ def execute_test_trade(store: Store, req: PaperTradeRequest) -> dict:
 
     trades_before = len(broker.trades)
     day = date.today()
-    broker.execute(intents=[intent], latest_price_by_ticker=latest_px, day=day)
+    now = datetime.now(tz=timezone.utc)
+    broker.execute(intents=[intent], latest_price_by_ticker=latest_px, day=day, as_of=now)
     new_trades = broker.trades[trades_before:]
 
     if not new_trades:
@@ -140,8 +142,8 @@ def execute_test_trade(store: Store, req: PaperTradeRequest) -> dict:
         )
 
     for t in new_trades:
-        store.save_trade(day=day, trade=t)
-    persist_broker(store, broker, latest_px=latest_px)
+        store.save_trade(user_id=user_id, day=day, trade=t)
+    persist_broker(store, user_id=user_id, broker=broker, latest_px=latest_px)
 
     portfolio = broker.get_portfolio(latest_price_by_ticker=latest_px)
     return {
@@ -157,9 +159,9 @@ def execute_test_trade(store: Store, req: PaperTradeRequest) -> dict:
     }
 
 
-def reset_paper_account(store: Store, *, starting_cash: float) -> dict:
+def reset_paper_account(store: Store, *, user_id: int, starting_cash: float) -> dict:
     broker = PaperBroker(starting_cash=float(starting_cash), fee_model=_fee_model(), slippage_bps=_slippage())
-    persist_broker(store, broker, latest_px={})
+    persist_broker(store, user_id=user_id, broker=broker, latest_px={})
     return {
         "mode": "paper",
         "status": "reset",

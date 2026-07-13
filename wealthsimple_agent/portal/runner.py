@@ -215,6 +215,7 @@ def _allocate_budget(
 
 def run_daily(
     *,
+    user_id: int,
     cfg: PortalConfig,
     store: Store,
     day: Optional[date] = None,
@@ -223,7 +224,7 @@ def run_daily(
     settings: Optional[Settings] = None,
 ) -> DailyReport:
     """
-    One portal trading day:
+    One portal trading day for a specific user:
       1. Add the daily budget to cash.
       2. Evaluate exits on existing positions (TP / SL / time).
       3. Rank buy signals from the universe and allocate today's budget.
@@ -235,8 +236,8 @@ def run_daily(
     deps = _deps(settings)
     fee_model = deps.fee_model
 
-    # Load or create broker
-    state = store.load_broker_state()
+    # Load or create broker for this user
+    state = store.load_broker_state(user_id=user_id)
     broker = PaperBroker(starting_cash=0.0, fee_model=fee_model, slippage_bps=deps.settings.slippage_bps)
     if state:
         broker.hydrate(cash=state["cash"], realized_pnl=state["realized_pnl"], positions=state["positions"])
@@ -375,21 +376,22 @@ def run_daily(
     # Persist
     portfolio_after = broker.get_portfolio(latest_price_by_ticker=latest_px)
     store.save_broker_state(
+        user_id=user_id,
         cash=portfolio_after.cash,
         realized_pnl=broker.realized_pnl,
         positions=portfolio_after.positions,
     )
     for rec in recommendations:
-        store.save_recommendation(day=day, rec=rec.as_dict())
+        store.save_recommendation(user_id=user_id, day=day, rec=rec.as_dict())
     for t in all_new_trades:
-        store.save_trade(day=day, trade=t)
+        store.save_trade(user_id=user_id, day=day, trade=t)
 
     # Monthly progress (default goal: double capital this month)
     year_month = day.strftime("%Y-%m")
-    realized_in_month = store.realized_pnl_in_month(year_month=year_month)
-    days_run = store.days_run_in_month(year_month=year_month)
-    sell_count, win_count = store.sell_trade_stats(year_month=year_month)
-    capital = store.capital_added_in_month(year_month=year_month, daily_budget=cfg.daily_budget)
+    realized_in_month = store.realized_pnl_in_month(user_id=user_id, year_month=year_month)
+    days_run = store.days_run_in_month(user_id=user_id, year_month=year_month)
+    sell_count, win_count = store.sell_trade_stats(user_id=user_id, year_month=year_month)
+    capital = store.capital_added_in_month(user_id=user_id, year_month=year_month, daily_budget=cfg.daily_budget)
     progress = compute_monthly_progress(
         year_month=year_month,
         daily_budget=cfg.daily_budget,
