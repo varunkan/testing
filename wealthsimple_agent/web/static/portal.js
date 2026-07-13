@@ -354,9 +354,7 @@
     const [portfolioRes, tradesRes, perfRes] = await Promise.all([
       apiFetch("/portal/portfolio"),
       apiFetch("/portal/trades"),
-      fetch(
-        api(`/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`)
-      ),
+      apiFetch(`/portal/performance/${new Date().toISOString().slice(0, 7)}?daily_budget=${encodeURIComponent(Number(dailyBudget.value) || 100)}&target_pct=${encodeURIComponent(targetPct())}`),
     ]);
     if (portfolioRes.ok) renderPortfolio(await portfolioRes.json());
     if (tradesRes.ok) renderTrades(await tradesRes.json());
@@ -512,8 +510,8 @@
     const box = $("acc-result");
     box.textContent = "Measuring…";
     try {
-      const res = await fetch(
-        api(`/portal/accuracy/${encodeURIComponent(ticker)}?horizon_days=${horizon}&threshold_pct=0.01&lookback_days=180`)
+      const res = await apiFetch(
+        `/portal/accuracy/${encodeURIComponent(ticker)}?horizon_days=${horizon}&threshold_pct=0.01&lookback_days=180`
       );
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
@@ -542,7 +540,7 @@
     resultBox.textContent = "Gathering analyst & market-driver opinions…";
     listBox.innerHTML = "";
     try {
-      const res = await fetch(api(`/portal/personas/${encodeURIComponent(ticker)}?lookback_days=90`));
+      const res = await apiFetch(`/portal/personas/${encodeURIComponent(ticker)}?lookback_days=90`);
       if (!res.ok) throw new Error(await res.text());
       const d = await res.json();
       if (!d.opinions || !d.opinions.length) {
