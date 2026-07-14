@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from wealthsimple_agent.models import UserCreate, UserLogin, UserSettings
 from wealthsimple_agent.portal.monthly import compute_monthly_progress
+from wealthsimple_agent.portal.morning import build_morning_plan, execute_morning_plan
 from wealthsimple_agent.portal.paper_trading import (
     PaperTradeRequest,
     ResetPaperRequest,
@@ -45,6 +46,28 @@ class PortalConfigModel(BaseModel):
 class DailyRunRequest(BaseModel):
     day: Optional[date] = None
     config: PortalConfigModel = Field(default_factory=PortalConfigModel)
+
+
+class MorningPlanRequest(BaseModel):
+    deposit: float = Field(default=100.0, ge=0)
+    universe: list[str] = Field(default_factory=lambda: list(DEFAULT_UNIVERSE))
+    max_buys: int = Field(default=4, ge=1, le=10)
+    min_confidence_to_buy: float = Field(default=0.55, ge=0.0, le=1.0)
+    db_path: str = Field(default=str(_DEFAULT_DB))
+
+
+class MorningPlanItemModel(BaseModel):
+    ticker: str = Field(min_length=1)
+    action: str  # buy | sell
+    quantity: float = Field(gt=0)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    expected_edge: float = 0.0
+    estimated_fees: float = 0.0
+
+
+class MorningExecuteRequest(BaseModel):
+    items: list[MorningPlanItemModel]
+    db_path: str = Field(default=str(_DEFAULT_DB))
 
 
 def _extract_api_key(authorization: Optional[str]) -> Optional[str]:
@@ -161,6 +184,42 @@ def run_daily_auto(
     with _get_store(db_path) as store:
         report = run_daily(user_id=user["id"], cfg=cfg, store=store)
     return report.as_dict()
+
+
+# ---- Morning briefing (deposit → ask before invest) ----
+
+@router.post("/morning/plan", summary="Deposit today's amount and get a plan to approve")
+def morning_plan(
+    req: MorningPlanRequest = Body(default_factory=MorningPlanRequest),
+    user: dict = CurrentUser,
+) -> dict:
+    with _get_store(req.db_path) as store:
+        return build_morning_plan(
+            store,
+            user_id=user["id"],
+            deposit=req.deposit,
+            universe=[t.strip().upper() for t in req.universe if t.strip()] or None,
+            max_buys=req.max_buys,
+            min_confidence_to_buy=req.min_confidence_to_buy,
+        )
+
+
+@router.post("/morning/execute", summary="Execute the approved items from the morning plan")
+def morning_execute(
+    req: MorningExecuteRequest,
+    user: dict = CurrentUser,
+) -> dict:
+    if not req.items:
+        raise HTTPException(status_code=400, detail="No items approved.")
+    try:
+        with _get_store(req.db_path) as store:
+            return execute_morning_plan(
+                store,
+                user_id=user["id"],
+                items=[i.model_dump() for i in req.items],
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ---- Recommendations & trades ----

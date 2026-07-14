@@ -573,6 +573,123 @@
     }
   });
 
+  // ---- Morning briefing (deposit → approve → invest) ----
+  let morningPlan = null;
+
+  function setMorningStatus(msg, isError = false) {
+    const el = $("morning-status");
+    el.textContent = msg || "";
+    el.classList.toggle("error", Boolean(isError));
+  }
+
+  function renderMorningPlan(plan) {
+    morningPlan = plan;
+    const box = $("morning-plan");
+    const sells = plan.sells || [];
+    const buys = plan.buys || [];
+
+    $("morning-summary").textContent =
+      `Deposited ${money(plan.deposit)} · cash now ${money(plan.cash_after_deposit)}` +
+      (sells.length ? ` · selling frees ≈ ${money(plan.estimated_sell_proceeds)}` : "") +
+      ` · investable if approved ≈ ${money(plan.investable_if_approved)}`;
+
+    const itemRow = (item, idx, kind) => {
+      const sideClass = kind === "buy" ? "side-buy" : "side-sell";
+      return `<label class="trade-row" style="cursor:pointer">
+        <span><input type="checkbox" class="morning-check" data-kind="${kind}" data-idx="${idx}" checked />
+          <span class="${sideClass}">${kind.toUpperCase()}</span> <strong>${item.ticker}</strong></span>
+        <span>${Number(item.quantity).toFixed(4)} @ ${money(item.price)} ≈ ${money(item.notional)} · ${Math.round(Number(item.confidence) * 100)}% conf</span>
+        <span style="font-size:0.82rem;color:var(--muted)">${item.reason}</span>
+      </label>`;
+    };
+
+    $("morning-sells-title").hidden = !sells.length;
+    $("morning-sells").innerHTML = sells.length
+      ? sells.map((s, i) => itemRow(s, i, "sell")).join("")
+      : "";
+    $("morning-buys-title").hidden = !buys.length;
+    $("morning-buys").innerHTML = buys.length
+      ? buys.map((b, i) => itemRow(b, i, "buy")).join("")
+      : `<p class="empty">No buy candidates cleared the confidence bar today — cash stays safe until tomorrow.</p>`;
+
+    $("morning-goal-note").textContent = plan.goal ? plan.goal.note : "";
+    box.hidden = false;
+  }
+
+  async function requestMorningPlan() {
+    if (!apiKey) return setMorningStatus("Log in first to get your morning plan.", true);
+    const deposit = Number($("morning-deposit").value) || 0;
+    $("morning-plan-btn").disabled = true;
+    setMorningStatus("Depositing and researching today's strongest ideas…");
+    try {
+      const res = await apiFetch("/portal/morning/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deposit, universe: parseUniverse() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+      renderMorningPlan(body);
+      await refreshPaperViews();
+      setMorningStatus(
+        `Plan ready — ${(body.sells || []).length} sell(s), ${(body.buys || []).length} buy(s). Review and approve below.`
+      );
+    } catch (err) {
+      setMorningStatus(err.message || String(err), true);
+    } finally {
+      $("morning-plan-btn").disabled = false;
+    }
+  }
+
+  async function approveMorningPlan() {
+    if (!morningPlan) return;
+    const checks = document.querySelectorAll(".morning-check:checked");
+    const items = [];
+    checks.forEach((c) => {
+      const kind = c.getAttribute("data-kind");
+      const idx = Number(c.getAttribute("data-idx"));
+      const src = kind === "buy" ? morningPlan.buys[idx] : morningPlan.sells[idx];
+      if (src) {
+        items.push({
+          ticker: src.ticker,
+          action: src.action,
+          quantity: src.quantity,
+          confidence: src.confidence,
+          expected_edge: src.expected_edge,
+          estimated_fees: src.estimated_fees,
+        });
+      }
+    });
+    if (!items.length) return setMorningStatus("Nothing selected to invest.", true);
+    $("morning-approve").disabled = true;
+    setMorningStatus("Executing your approved picks as paper fills…");
+    try {
+      const res = await apiFetch("/portal/morning/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+      $("morning-plan").hidden = true;
+      morningPlan = null;
+      await refreshPaperViews();
+      setMorningStatus(`Done — ${body.executed_count} fill(s) executed. Portfolio updated below.`);
+    } catch (err) {
+      setMorningStatus(err.message || String(err), true);
+    } finally {
+      $("morning-approve").disabled = false;
+    }
+  }
+
+  $("morning-plan-btn").addEventListener("click", requestMorningPlan);
+  $("morning-approve").addEventListener("click", approveMorningPlan);
+  $("morning-dismiss").addEventListener("click", () => {
+    $("morning-plan").hidden = true;
+    morningPlan = null;
+    setMorningStatus("Plan dismissed — your deposit stays in cash.");
+  });
+
   $("auth-login").addEventListener("click", login);
   $("auth-signup").addEventListener("click", signup);
   $("auth-logout").addEventListener("click", logout);

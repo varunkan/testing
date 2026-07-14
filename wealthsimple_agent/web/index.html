@@ -57,6 +57,31 @@
       <p class="status" id="auth-status" role="status"></p>
     </section>
 
+    <section class="panel morning-panel" aria-labelledby="morning-heading">
+      <h2 id="morning-heading">Morning briefing</h2>
+      <p class="panel-sub">Add today’s amount. The agent proposes what to sell (rotate into stronger ideas) and what to buy for the 10× goal — <strong>nothing executes until you approve</strong>.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Amount to add today (USD)</span>
+          <input type="number" id="morning-deposit" min="0" step="1" value="100" />
+        </label>
+        <button type="button" class="cta" id="morning-plan-btn">Add funds &amp; get my plan</button>
+      </div>
+      <p class="status" id="morning-status" role="status" aria-live="polite"></p>
+      <div id="morning-plan" hidden>
+        <p class="preset-info" id="morning-summary"></p>
+        <h3 class="history-title" id="morning-sells-title" hidden>Sell to free capital</h3>
+        <div id="morning-sells" class="trades-list"></div>
+        <h3 class="history-title" id="morning-buys-title" hidden>Invest in</h3>
+        <div id="morning-buys" class="trades-list"></div>
+        <div class="actions">
+          <button type="button" class="cta amber" id="morning-approve">Approve &amp; invest selected</button>
+          <button type="button" class="ghost" id="morning-dismiss">Dismiss plan</button>
+        </div>
+        <p class="preset-info" id="morning-goal-note"></p>
+      </div>
+    </section>
+
     <section class="panel goal-panel" aria-labelledby="goal-heading">
       <h2 id="goal-heading">Today’s plan</h2>
       <p class="panel-sub">Default goal: <strong>10× capital this month (1000% ROI)</strong>. Aspirational — not guaranteed.</p>

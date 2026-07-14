@@ -73,9 +73,19 @@ CREATE TABLE IF NOT EXISTS trades (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    amount REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_recommendations_user_day ON recommendations(user_id, day);
 CREATE INDEX IF NOT EXISTS idx_trades_user_day ON trades(user_id, day);
 CREATE INDEX IF NOT EXISTS idx_trades_user_month ON trades(user_id, substr(day, 1, 7));
+CREATE INDEX IF NOT EXISTS idx_deposits_user_month ON deposits(user_id, substr(day, 1, 7));
 """
 
 
@@ -373,5 +383,21 @@ class Store:
         return total, wins
 
     def capital_added_in_month(self, *, user_id: int, year_month: str, daily_budget: float) -> float:
-        """Approximate capital deployed = daily_budget × distinct days with recommendations."""
-        return float(daily_budget) * float(self.days_run_in_month(user_id=user_id, year_month=year_month))
+        """Capital deployed = daily_budget × days run (auto flow) + explicit morning deposits."""
+        auto = float(daily_budget) * float(self.days_run_in_month(user_id=user_id, year_month=year_month))
+        return auto + self.deposits_in_month(user_id=user_id, year_month=year_month)
+
+    # ---- deposits ----
+    def add_deposit(self, *, user_id: int, day: date, amount: float) -> None:
+        self._conn.execute(
+            "INSERT INTO deposits (user_id, day, amount, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, day.isoformat(), float(amount), datetime.now(tz=timezone.utc).isoformat()),
+        )
+        self._conn.commit()
+
+    def deposits_in_month(self, *, user_id: int, year_month: str) -> float:
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(amount), 0.0) AS total FROM deposits WHERE user_id = ? AND substr(day, 1, 7) = ?",
+            (user_id, year_month),
+        ).fetchone()
+        return float(row["total"])
