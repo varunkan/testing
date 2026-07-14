@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +9,7 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from wealthsimple_agent.models import UserCreate, UserLogin, UserSettings
+from wealthsimple_agent.portal.live_engine import get_live_engine
 from wealthsimple_agent.portal.monthly import compute_monthly_progress
 from wealthsimple_agent.portal.morning import build_morning_plan, execute_morning_plan
 from wealthsimple_agent.portal.paper_trading import (
@@ -67,6 +68,16 @@ class MorningPlanItemModel(BaseModel):
 
 class MorningExecuteRequest(BaseModel):
     items: list[MorningPlanItemModel]
+    db_path: str = Field(default=str(_DEFAULT_DB))
+
+
+class LiveExecuteRequest(BaseModel):
+    ticker: str = Field(min_length=1)
+    action: str  # buy | sell
+    # For buys: how many dollars to invest (capped at available cash).
+    notional: Optional[float] = Field(default=None, gt=0)
+    # For sells: quantity to sell (defaults to the full position).
+    quantity: Optional[float] = Field(default=None, gt=0)
     db_path: str = Field(default=str(_DEFAULT_DB))
 
 
@@ -184,6 +195,169 @@ def run_daily_auto(
     with _get_store(db_path) as store:
         report = run_daily(user_id=user["id"], cfg=cfg, store=store)
     return report.as_dict()
+
+
+# ---- Live desk (always-on engine, real-time-ish quotes, one-click trades) ----
+
+_LIVE_TAKE_PROFIT = 0.04
+_LIVE_STOP_LOSS = 0.02
+
+
+@router.get("/live/health", summary="Self-healing live engine status")
+def live_health() -> dict:
+    return get_live_engine().health.as_dict()
+
+
+@router.post("/live/scan", summary="Force a full market scan right now")
+def live_scan() -> dict:
+    engine = get_live_engine()
+    try:
+        count = engine.scan_once()
+    except Exception as e:
+        engine.health.consecutive_failures += 1
+        engine.health.last_error = f"{type(e).__name__}: {e}"
+        raise HTTPException(status_code=502, detail=f"Scan failed: {e}") from e
+    return {"opportunities": count, "health": engine.health.as_dict()}
+
+
+@router.get("/live/quotes", summary="Latest live prices for tickers (comma-separated)")
+def live_quotes(tickers: str = "") -> dict:
+    engine = get_live_engine()
+    wanted = [t for t in (x.strip().upper() for x in tickers.split(",")) if t]
+    quotes = engine.quotes(wanted or None)
+    missing = [t for t in wanted if t not in quotes]
+    if missing:
+        try:
+            engine.refresh_quotes_only(extra_tickers=missing)
+            quotes = engine.quotes(wanted or None)
+        except Exception:
+            pass
+    return {"quotes": quotes}
+
+
+@router.get("/live/opportunities", summary="What can benefit you right now (position-aware)")
+def live_opportunities(
+    user: dict = CurrentUser,
+    db_path: str = str(_DEFAULT_DB),
+    max_buys: int = 8,
+) -> dict:
+    engine = get_live_engine()
+    ops = engine.opportunities()
+    prices = engine.quote_prices()
+
+    with _get_store(db_path) as store:
+        state = store.load_broker_state(user_id=user["id"])
+    positions = state["positions"] if state else []
+    cash = float(state["cash"]) if state else 0.0
+    held = {p.ticker for p in positions}
+
+    # Position advice: live P&L + exit flags against the freshest prices we have.
+    ops_by_ticker = {o["ticker"]: o for o in ops}
+    position_advice: list[dict] = []
+    for p in positions:
+        live_px = prices.get(p.ticker)
+        pnl_pct = None
+        if live_px and p.avg_price:
+            pnl_pct = (live_px - float(p.avg_price)) / float(p.avg_price)
+        sig = ops_by_ticker.get(p.ticker)
+        advice = "hold"
+        reason = "No exit trigger — position is within its risk band."
+        if pnl_pct is not None and pnl_pct >= _LIVE_TAKE_PROFIT:
+            advice = "sell"
+            reason = f"Take profit: up {pnl_pct:.1%} vs your cost — lock the gain now."
+        elif pnl_pct is not None and pnl_pct <= -_LIVE_STOP_LOSS:
+            advice = "sell"
+            reason = f"Stop loss: down {pnl_pct:.1%} vs your cost — cut it before it compounds."
+        elif sig and sig["action"] == "sell":
+            advice = "sell"
+            reason = f"Signal flipped bearish ({sig['confidence']:.0%} confidence) — rotate out."
+        position_advice.append(
+            {
+                "ticker": p.ticker,
+                "quantity": float(p.quantity),
+                "avg_price": float(p.avg_price),
+                "live_price": live_px,
+                "pnl_pct": pnl_pct,
+                "advice": advice,
+                "reason": reason,
+            }
+        )
+
+    buy_ops = [o for o in ops if o["action"] == "buy" and o["ticker"] not in held]
+    return {
+        "as_of": datetime.now(tz=timezone.utc).isoformat(),
+        "market_open": engine.health.market_open,
+        "engine": engine.health.as_dict(),
+        "cash": cash,
+        "positions": position_advice,
+        "buy_now": buy_ops[: max(1, min(max_buys, 20))],
+        "sell_now": [a for a in position_advice if a["advice"] == "sell"],
+        "disclaimer": (
+            "Signals are computed from delayed market data (up to ~15 min). "
+            "Paper trading only — not financial advice, 10x/month is aspirational."
+        ),
+    }
+
+
+@router.post("/live/execute", summary="One-click paper trade at the live price")
+def live_execute(
+    req: LiveExecuteRequest,
+    user: dict = CurrentUser,
+) -> dict:
+    engine = get_live_engine()
+    ticker = req.ticker.strip().upper()
+    action = req.action.lower()
+    if action not in ("buy", "sell"):
+        raise HTTPException(status_code=400, detail="action must be buy or sell")
+
+    price = engine.quote_prices().get(ticker)
+    if price is None:
+        try:
+            engine.refresh_quotes_only(extra_tickers=[ticker])
+            price = engine.quote_prices().get(ticker)
+        except Exception:
+            price = None
+
+    with _get_store(req.db_path) as store:
+        state = store.load_broker_state(user_id=user["id"])
+        cash = float(state["cash"]) if state else 0.0
+        positions = state["positions"] if state else []
+
+        if action == "buy":
+            if price is None or price <= 0:
+                raise HTTPException(status_code=502, detail=f"No live price available for {ticker}.")
+            notional = float(req.notional or 0)
+            if notional <= 0:
+                raise HTTPException(status_code=400, detail="Provide notional (dollars to invest) for buys.")
+            spend = min(notional, cash * 0.995)
+            if spend < 1.0:
+                raise HTTPException(status_code=400, detail=f"Not enough cash (${cash:.2f}) to buy {ticker}.")
+            quantity = spend / float(price)
+        else:
+            pos = next((p for p in positions if p.ticker == ticker), None)
+            if pos is None or pos.quantity <= 0:
+                raise HTTPException(status_code=400, detail=f"You don't hold {ticker}.")
+            quantity = float(req.quantity or pos.quantity)
+            quantity = min(quantity, float(pos.quantity))
+            if price is None or price <= 0:
+                price = float(pos.avg_price)
+
+        try:
+            result = execute_test_trade(
+                store,
+                user_id=user["id"],
+                req=PaperTradeRequest(
+                    ticker=ticker,
+                    action="buy" if action == "buy" else "sell",
+                    quantity=quantity,
+                    price=float(price),
+                    fund_if_needed=False,
+                ),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+    result["live_price"] = float(price)
+    return result
 
 
 # ---- Morning briefing (deposit → ask before invest) ----

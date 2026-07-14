@@ -103,6 +103,7 @@
       currentUser = body;
       renderAuth();
       refreshPaperViews();
+      startLivePolling();
       setAuthStatus("Logged in.");
     } catch (err) {
       setAuthStatus(err.message || String(err), true);
@@ -126,6 +127,7 @@
       currentUser = body;
       renderAuth();
       refreshPaperViews();
+      startLivePolling();
       setAuthStatus("Account created.");
     } catch (err) {
       setAuthStatus(err.message || String(err), true);
@@ -136,6 +138,7 @@
     apiKey = "";
     currentUser = null;
     localStorage.removeItem("forge_desk_api_key");
+    if (liveTimer) clearInterval(liveTimer);
     renderAuth();
     setAuthStatus("Logged out.");
   }
@@ -573,6 +576,137 @@
     }
   });
 
+  // ---- Live desk (always-on engine, one-click trades) ----
+  let liveTimer = null;
+
+  function setLiveStatus(msg, isError = false) {
+    const el = $("live-status");
+    el.textContent = msg || "";
+    el.classList.toggle("error", Boolean(isError));
+  }
+
+  function pct(x) {
+    return x == null ? "—" : `${(Number(x) * 100).toFixed(2)}%`;
+  }
+
+  function renderLiveDesk(d) {
+    const engine = d.engine || {};
+    const marketLabel = d.market_open ? "Market open" : "Market closed";
+    const lastScan = engine.last_success_at
+      ? new Date(engine.last_success_at).toLocaleTimeString()
+      : "never";
+    $("live-engine-status").textContent =
+      `${marketLabel} · engine ${engine.running ? "running" : "stopped"} · ` +
+      `${engine.scans_completed || 0} scans · last scan ${lastScan}` +
+      (engine.last_error ? ` · last error: ${engine.last_error}` : "") +
+      (engine.self_heals ? ` · self-healed ${engine.self_heals}×` : "") +
+      ` · cash ${money(d.cash)}`;
+
+    const positions = d.positions || [];
+    $("live-sell-title").hidden = !positions.length;
+    $("live-positions").innerHTML = positions.length
+      ? positions
+          .map((p) => {
+            const pnlClass = p.pnl_pct == null ? "" : Number(p.pnl_pct) >= 0 ? "side-buy" : "side-sell";
+            const sellBtn =
+              p.advice === "sell"
+                ? `<button type="button" class="cta amber live-sell-btn" data-ticker="${p.ticker}">Sell now</button>`
+                : `<button type="button" class="ghost live-sell-btn" data-ticker="${p.ticker}">Sell</button>`;
+            return `<div class="trade-row">
+              <span><strong>${p.ticker}</strong> ${Number(p.quantity).toFixed(4)} @ ${money(p.avg_price)}</span>
+              <span>live ${p.live_price ? money(p.live_price) : "—"} · <span class="${pnlClass}">${pct(p.pnl_pct)}</span></span>
+              <span style="font-size:0.82rem;color:var(--muted)">${p.reason}</span>
+              <span>${sellBtn}</span>
+            </div>`;
+          })
+          .join("")
+      : "";
+
+    const buys = d.buy_now || [];
+    $("live-buy-title").hidden = false;
+    $("live-buys").innerHTML = buys.length
+      ? buys
+          .map((o) => {
+            const chg = o.change_pct == null ? "" : ` · today ${pct(o.change_pct)}`;
+            return `<div class="trade-row">
+              <span><span class="side-buy">BUY</span> <strong>${o.ticker}</strong> @ ${money(o.price)}${chg}</span>
+              <span>${Math.round(Number(o.confidence) * 100)}% conf</span>
+              <span style="font-size:0.82rem;color:var(--muted)">${o.rationale}</span>
+              <span><button type="button" class="cta live-buy-btn" data-ticker="${o.ticker}">Buy now</button></span>
+            </div>`;
+          })
+          .join("")
+      : `<p class="empty">No buy signals clear the bar right now — the engine keeps scanning all day.</p>`;
+
+    document.querySelectorAll(".live-buy-btn").forEach((btn) => {
+      btn.addEventListener("click", () => liveTrade(btn.getAttribute("data-ticker"), "buy"));
+    });
+    document.querySelectorAll(".live-sell-btn").forEach((btn) => {
+      btn.addEventListener("click", () => liveTrade(btn.getAttribute("data-ticker"), "sell"));
+    });
+  }
+
+  async function refreshLiveDesk() {
+    if (!apiKey) {
+      $("live-engine-status").textContent = "Log in to see live signals for your account.";
+      return;
+    }
+    try {
+      const res = await apiFetch("/portal/live/opportunities");
+      if (!res.ok) throw new Error(await res.text());
+      renderLiveDesk(await res.json());
+    } catch (err) {
+      setLiveStatus(err.message || String(err), true);
+    }
+  }
+
+  async function liveTrade(ticker, action) {
+    const payload = { ticker, action };
+    if (action === "buy") payload.notional = Number($("live-buy-amount").value) || 50;
+    setLiveStatus(`Executing ${action.toUpperCase()} ${ticker} at live price…`);
+    try {
+      const res = await apiFetch("/portal/live/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+      setLiveStatus(
+        `Filled ${String(body.trade.side).toUpperCase()} ${body.trade.ticker} ` +
+          `${Number(body.trade.qty).toFixed(4)} @ ${money(body.trade.px)} (live).`
+      );
+      await Promise.all([refreshLiveDesk(), refreshPaperViews()]);
+    } catch (err) {
+      setLiveStatus(err.message || String(err), true);
+    }
+  }
+
+  async function forceLiveScan() {
+    $("live-force-scan").disabled = true;
+    setLiveStatus("Running a full market rescan — this can take a minute…");
+    try {
+      const res = await apiFetch("/portal/live/scan", { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+      setLiveStatus(`Rescan complete — ${body.opportunities} live signals found.`);
+      await refreshLiveDesk();
+    } catch (err) {
+      setLiveStatus(err.message || String(err), true);
+    } finally {
+      $("live-force-scan").disabled = false;
+    }
+  }
+
+  function startLivePolling() {
+    if (liveTimer) clearInterval(liveTimer);
+    liveTimer = setInterval(refreshLiveDesk, 60_000);
+    refreshLiveDesk();
+  }
+
+  $("live-refresh").addEventListener("click", refreshLiveDesk);
+  $("live-force-scan").addEventListener("click", forceLiveScan);
+
   // ---- Morning briefing (deposit → approve → invest) ----
   let morningPlan = null;
 
@@ -718,7 +852,10 @@
   recsList.innerHTML = `<p class="empty">Run a morning session to generate tickets.</p>`;
   fetchUser().then((u) => {
     renderAuth();
-    if (u) refreshPaperViews().catch(() => {});
+    if (u) {
+      refreshPaperViews().catch(() => {});
+      startLivePolling();
+    }
   });
 
   // Universe preset chips

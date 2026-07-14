@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -16,13 +18,31 @@ from wealthsimple_agent.fees import FeeModel
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars, latest_close
 from wealthsimple_agent.news.rss import fetch_rss
 from wealthsimple_agent.risk import RiskLimits
+from wealthsimple_agent.portal.live_engine import get_live_engine
 from wealthsimple_agent.portal.router import router as portal_router
 
 
 _WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 _STATIC_DIR = _WEB_DIR / "static"
 
-app = FastAPI(title="Forge Desk — Trading Recommendation Portal", version="0.2.0")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Start the self-healing live scan loop in the background.
+    engine = get_live_engine()
+    task = asyncio.create_task(engine.run_forever())
+    try:
+        yield
+    finally:
+        engine.stop()
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+
+app = FastAPI(title="Forge Desk — Trading Recommendation Portal", version="0.3.0", lifespan=_lifespan)
 app.include_router(portal_router)
 
 # Allow the Vercel-hosted frontend (or any configured origin) to call the API.

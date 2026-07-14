@@ -57,6 +57,29 @@
       <p class="status" id="auth-status" role="status"></p>
     </section>
 
+    <section class="panel live-panel" aria-labelledby="live-heading">
+      <div class="recs-header">
+        <h2 id="live-heading">Live desk</h2>
+        <p class="panel-sub">Connected to market data — the engine rescans all day and shows what can benefit you <strong>right now</strong>. One click executes a paper trade at the live price.</p>
+      </div>
+      <p class="preset-info" id="live-engine-status">Engine warming up…</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Buy amount per click (USD)</span>
+          <input type="number" id="live-buy-amount" min="1" step="1" value="50" />
+        </label>
+        <button type="button" class="ghost" id="live-refresh">Refresh now</button>
+        <button type="button" class="ghost" id="live-force-scan">Force full rescan</button>
+      </div>
+      <p class="status" id="live-status" role="status" aria-live="polite"></p>
+
+      <h3 class="history-title" id="live-sell-title" hidden>Act on your positions</h3>
+      <div id="live-positions" class="trades-list"></div>
+
+      <h3 class="history-title" id="live-buy-title" hidden>Buy signals live now</h3>
+      <div id="live-buys" class="trades-list"></div>
+    </section>
+
     <section class="panel morning-panel" aria-labelledby="morning-heading">
       <h2 id="morning-heading">Morning briefing</h2>
       <p class="panel-sub">Add today’s amount. The agent proposes what to sell (rotate into stronger ideas) and what to buy for the 10× goal — <strong>nothing executes until you approve</strong>.</p>
