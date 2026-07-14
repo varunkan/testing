@@ -10,7 +10,7 @@ from wealthsimple_agent.engine import AgentDependencies
 from wealthsimple_agent.fees import FeeModel
 from wealthsimple_agent.market.yfinance_provider import fetch_daily_bars, latest_close
 from wealthsimple_agent.models import NewsItem, OrderIntent, PriceBar, Signal
-from wealthsimple_agent.news.rss import fetch_rss
+from wealthsimple_agent.news.aggregator import aggregate_news
 from wealthsimple_agent.portal.monthly import compute_monthly_progress
 from wealthsimple_agent.portal.store import Store
 from wealthsimple_agent.risk import RiskLimits
@@ -255,13 +255,15 @@ def run_daily(
         lookback = max(cfg.lookback_days, deps.settings.default_lookback_days)
         bars_by_ticker = fetch_daily_bars(universe, lookback_days=lookback)
     if news_by_ticker is None:
-        items: list[NewsItem] = []
-        for url in cfg.rss_urls:
-            try:
-                items.extend(fetch_rss(url))
-            except Exception:
-                continue
-        news_by_ticker = {t: items for t in universe}
+        news_by_ticker = aggregate_news(
+            universe,
+            news_sources=deps.settings.news_sources,
+            rss_urls=cfg.rss_urls or deps.settings.rss_feeds or None,
+            finnhub_key=deps.settings.finnhub_api_key,
+            newsapi_key=deps.settings.newsapi_key,
+            max_age_hours=deps.settings.news_max_age_hours,
+            timeout_s=deps.settings.news_timeout_s,
+        )
 
     latest_px: dict[str, float] = {}
     for t in universe:

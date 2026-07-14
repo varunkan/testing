@@ -15,6 +15,7 @@ class NewsItem(BaseModel):
     link: Optional[str] = None
     published_at: Optional[datetime] = None
     summary: Optional[str] = None
+    tickers: list[str] = Field(default_factory=list)
 
 
 class PriceBar(BaseModel):
