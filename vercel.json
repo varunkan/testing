@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "python scripts/prepare_web.py",
+  "outputDirectory": "wealthsimple_agent/web",
+  "installCommand": "pip install -r requirements.txt",
+  "github": {
+    "enabled": true
+  }
+}

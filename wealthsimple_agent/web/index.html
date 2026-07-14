@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forge Desk — Multi-persona trading signals</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/portal.css" />
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="hero" id="hero">
+    <div class="hero-mark" aria-hidden="true">
+      <span class="pulse-ring"></span>
+      <svg class="hero-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 34 L16 22 L24 28 L34 12 L42 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M34 12 H42 V20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="brand">Forge Desk</p>
+    <h1 class="hero-headline">Aim for 10× this month. Track every dollar.</h1>
+    <p class="hero-sub">Paper-test buys and sells on a fixed daily budget — multi-factor signals, vol-aware exits, and ROI tracking after fees.</p>
+    <button type="button" class="cta" id="scroll-to-desk">Open morning desk</button>
+  </header>
+
+  <main id="desk" class="desk">
+    <section class="panel auth-panel" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Account</h2>
+      <p class="panel-sub">Each user gets their own paper portfolio and daily trade history.</p>
+      <div id="auth-forms">
+        <div class="goal-grid">
+          <label class="field">
+            <span>Username</span>
+            <input type="text" id="auth-username" placeholder="your_username" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input type="password" id="auth-password" placeholder="••••••" />
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" class="cta" id="auth-signup">Sign up</button>
+          <button type="button" class="ghost" id="auth-login">Log in</button>
+        </div>
+      </div>
+      <div id="auth-info" hidden>
+        <p>Logged in as <strong id="auth-user">—</strong></p>
+        <label class="check">
+          <input type="checkbox" id="auto-invest-toggle" />
+          Auto-invest every day on my behalf
+        </label>
+        <button type="button" class="ghost" id="auth-logout">Log out</button>
+      </div>
+      <p class="status" id="auth-status" role="status"></p>
+    </section>
+
+    <section class="panel live-panel" aria-labelledby="live-heading">
+      <div class="recs-header">
+        <h2 id="live-heading">Live desk</h2>
+        <p class="panel-sub">Connected to market data — the engine rescans all day and shows what can benefit you <strong>right now</strong>. One click executes a paper trade at the live price.</p>
+      </div>
+      <p class="preset-info" id="live-engine-status">Engine warming up…</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Buy amount per click (USD)</span>
+          <input type="number" id="live-buy-amount" min="1" step="1" value="50" />
+        </label>
+        <button type="button" class="ghost" id="live-refresh">Refresh now</button>
+        <button type="button" class="ghost" id="live-force-scan">Force full rescan</button>
+      </div>
+      <p class="status" id="live-status" role="status" aria-live="polite"></p>
+
+      <h3 class="history-title" id="live-sell-title" hidden>Act on your positions</h3>
+      <div id="live-positions" class="trades-list"></div>
+
+      <h3 class="history-title" id="live-buy-title" hidden>Buy signals live now</h3>
+      <div id="live-buys" class="trades-list"></div>
+    </section>
+
+    <section class="panel morning-panel" aria-labelledby="morning-heading">
+      <h2 id="morning-heading">Morning briefing</h2>
+      <p class="panel-sub">Add today’s amount. The agent proposes what to sell (rotate into stronger ideas) and what to buy for the 10× goal — <strong>nothing executes until you approve</strong>.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Amount to add today (USD)</span>
+          <input type="number" id="morning-deposit" min="0" step="1" value="100" />
+        </label>
+        <button type="button" class="cta" id="morning-plan-btn">Add funds &amp; get my plan</button>
+      </div>
+      <p class="status" id="morning-status" role="status" aria-live="polite"></p>
+      <div id="morning-plan" hidden>
+        <p class="preset-info" id="morning-summary"></p>
+        <h3 class="history-title" id="morning-sells-title" hidden>Sell to free capital</h3>
+        <div id="morning-sells" class="trades-list"></div>
+        <h3 class="history-title" id="morning-buys-title" hidden>Invest in</h3>
+        <div id="morning-buys" class="trades-list"></div>
+        <div class="actions">
+          <button type="button" class="cta amber" id="morning-approve">Approve &amp; invest selected</button>
+          <button type="button" class="ghost" id="morning-dismiss">Dismiss plan</button>
+        </div>
+        <p class="preset-info" id="morning-goal-note"></p>
+      </div>
+    </section>
+
+    <section class="panel goal-panel" aria-labelledby="goal-heading">
+      <h2 id="goal-heading">Today’s plan</h2>
+      <p class="panel-sub">Default goal: <strong>10× capital this month (1000% ROI)</strong>. Aspirational — not guaranteed.</p>
+
+      <div class="goal-grid">
+        <label class="field">
+          <span>Daily budget (USD)</span>
+          <input type="number" id="daily-budget" min="1" step="1" value="100" />
+        </label>
+        <label class="field">
+          <span>Monthly goal</span>
+          <div class="slider-row">
+            <input type="range" id="monthly-target" min="50" max="1000" step="50" value="1000" />
+            <strong id="monthly-target-label">10×</strong>
+          </div>
+        </label>
+        <label class="field field-wide">
+          <span>Universe (use @nasdaq100, @tsx60, @broad, or tickers)</span>
+          <input type="text" id="universe" value="@nasdaq100, @tsx60" />
+        </label>
+      </div>
+
+      <div class="preset-row">
+        <button type="button" class="chip" data-preset="@nasdaq100">@nasdaq100</button>
+        <button type="button" class="chip" data-preset="@tsx60">@tsx60</button>
+        <button type="button" class="chip" data-preset="@broad">@broad</button>
+        <button type="button" class="chip" data-preset="@nasdaq">@nasdaq</button>
+        <button type="button" class="chip" data-preset="@tsx">@tsx</button>
+        <button type="button" class="ghost chip-info" id="load-presets">Show preset sizes</button>
+      </div>
+      <p class="preset-info" id="preset-info" hidden></p>
+
+      <p class="target-hint" id="target-hint">10× goal: earn ≈ $21,000 profit on $2,100 capital this month (aspirational).</p>
+
+      <div class="actions">
+        <button type="button" class="cta" id="run-day">Run morning session</button>
+        <button type="button" class="cta amber" id="auto-run-day">Auto-invest today</button>
+        <button type="button" class="ghost" id="refresh-month">Refresh performance</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel progress-panel" aria-labelledby="progress-heading">
+      <h2 id="progress-heading">Performance</h2>
+      <p class="panel-sub">Toward 10× this month — realized P&amp;L after fees.</p>
+
+      <div class="progress-numbers">
+        <span class="realized" id="realized">$0.00</span>
+        <span class="of-target" id="of-target">of $21,000 to 10×</span>
+      </div>
+      <div class="bar-track" aria-hidden="true">
+        <div class="bar-fill" id="bar-fill" style="width: 0%"></div>
+      </div>
+      <p class="progress-meta" id="progress-meta">0% of 10× goal · ROI 0% · 0 days run</p>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat"><span class="stat-label">Capital in</span><strong id="stat-capital">$0</strong></div>
+        <div class="stat"><span class="stat-label">ROI</span><strong id="stat-roi">0%</strong></div>
+        <div class="stat"><span class="stat-label">Win rate</span><strong id="stat-win">—</strong></div>
+        <div class="stat"><span class="stat-label">Sells</span><strong id="stat-trades">0</strong></div>
+        <div class="stat"><span class="stat-label">Equity</span><strong id="stat-equity">$0</strong></div>
+        <div class="stat"><span class="stat-label">Cash</span><strong id="stat-cash">$0</strong></div>
+      </div>
+    </section>
+
+    <section class="panel recs-panel" aria-labelledby="recs-heading">
+      <div class="recs-header">
+        <h2 id="recs-heading">Morning tickets</h2>
+        <p class="panel-sub" id="recs-day">Run a session for recommendations. The session also paper-fills exits/buys automatically.</p>
+      </div>
+      <div id="recs-list" class="recs-list"></div>
+    </section>
+
+    <section class="panel paper-panel" aria-labelledby="paper-heading">
+      <div class="recs-header">
+        <h2 id="paper-heading">My portfolio</h2>
+        <p class="panel-sub">Your paper account: cash, open positions, recent fills, and test trades. No live brokerage orders.</p>
+      </div>
+
+      <div class="stats-grid paper-stats">
+        <div class="stat"><span class="stat-label">Paper cash</span><strong id="paper-cash">$0</strong></div>
+        <div class="stat"><span class="stat-label">Paper equity</span><strong id="paper-equity">$0</strong></div>
+        <div class="stat"><span class="stat-label">Realized P&amp;L</span><strong id="paper-realized">$0</strong></div>
+      </div>
+
+      <div class="positions" id="positions-list">
+        <p class="empty">No open paper positions.</p>
+      </div>
+
+      <form id="manual-trade-form" class="manual-trade">
+        <h3>Place a test trade</h3>
+        <div class="goal-grid">
+          <label class="field">
+            <span>Ticker</span>
+            <input type="text" id="tt-ticker" value="AAPL" required />
+          </label>
+          <label class="field">
+            <span>Side</span>
+            <select id="tt-side">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Quantity</span>
+            <input type="number" id="tt-qty" min="0.0001" step="0.0001" value="0.1" required />
+          </label>
+          <label class="field">
+            <span>Price override (optional)</span>
+            <input type="number" id="tt-price" min="0.01" step="0.01" placeholder="Live quote" />
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="tt-fund" checked />
+          Auto-fund paper cash if buy needs more money
+        </label>
+        <div class="actions">
+          <button type="submit" class="cta amber">Execute test trade</button>
+          <button type="button" class="ghost" id="refresh-portfolio">Refresh portfolio</button>
+          <button type="button" class="ghost" id="reset-paper">Reset paper account</button>
+        </div>
+      </form>
+
+      <h3 class="history-title">Recent test fills</h3>
+      <div id="trades-list" class="trades-list">
+        <p class="empty">No paper fills yet.</p>
+      </div>
+    </section>
+
+    <section class="panel disclaimer-panel">
+      <p><strong>10× every month is an extreme aspirational goal</strong> — not realistic for most strategies and not guaranteed. Forge Desk tracks performance honestly so you can see what paper trading actually does. Test trading is paper only — not auto-trading on Wealthsimple. Not financial advice.</p>
+    </section>
+
+    <section class="panel accuracy-panel" aria-labelledby="accuracy-heading">
+      <h2 id="accuracy-heading">Measured accuracy</h2>
+      <p class="panel-sub">Backtests the signal engine on a ticker’s past prices. <strong>Historical hit-rate, not a future guarantee.</strong></p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Ticker</span>
+          <input type="text" id="acc-ticker" value="AAPL" />
+        </label>
+        <label class="field">
+          <span>Horizon (days)</span>
+          <input type="number" id="acc-horizon" min="1" max="20" value="5" />
+        </label>
+        <button type="button" class="ghost" id="acc-run">Measure hit-rate</button>
+      </div>
+      <div id="acc-result" class="acc-result">Run a measurement to see the engine’s past hit-rate.</div>
+    </section>
+
+    <section class="panel daily-report-panel" aria-labelledby="daily-report-heading">
+      <h2 id="daily-report-heading">Daily profit &amp; loss</h2>
+      <p class="panel-sub">See exactly what the agent did on a given day and how much P&amp;L it generated.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Day</span>
+          <input type="date" id="daily-report-day" />
+        </label>
+        <button type="button" class="ghost" id="daily-report-run">Load daily report</button>
+      </div>
+      <div id="daily-report-result" class="acc-result">Pick a day to see recommendations, trades, and realized P&amp;L.</div>
+    </section>
+
+    <section class="panel personas-panel" aria-labelledby="personas-heading">
+      <h2 id="personas-heading">Analyst & market-driver council</h2>
+      <p class="panel-sub">Fundamental-style personas (value, growth, quality, sector analysts) and market-driver personas (retail, quant, institutional, activist) each evaluate the ticker and vote. The final signal blends their views with the multi-factor engine.</p>
+      <div class="accuracy-row">
+        <label class="field">
+          <span>Ticker</span>
+          <input type="text" id="persona-ticker" value="AAPL" />
+        </label>
+        <button type="button" class="ghost" id="persona-run">Gather opinions</button>
+      </div>
+      <div id="persona-result" class="persona-result">Run a query to see how each persona evaluates the ticker.</div>
+      <div id="persona-list" class="persona-list"></div>
+    </section>
+  </main>
+
+  <dialog id="ticket-dialog" class="ticket-dialog">
+    <form method="dialog" class="ticket-sheet">
+      <header class="ticket-top">
+        <span class="badge" id="ticket-action">BUY</span>
+        <button type="submit" class="ghost close-x" value="cancel" aria-label="Close">Close</button>
+      </header>
+      <h3 id="ticket-ticker">—</h3>
+      <p id="ticket-reason" class="ticket-reason"></p>
+      <dl class="ticket-metrics" id="ticket-metrics"></dl>
+      <p id="ticket-rationale" class="ticket-rationale"></p>
+      <div id="ticket-personas" class="persona-opinions" hidden></div>
+      <p class="ticket-note">Execute as a paper fill on Forge Desk, or mark for manual placement in your brokerage app.</p>
+      <button type="button" class="cta amber" id="test-trade-ticket">Execute test trade</button>
+      <button type="button" class="ghost full" id="approve-ticket">Mark for manual placement</button>
+      <p class="approved-msg" id="approved-msg" hidden>Done.</p>
+    </form>
+  </dialog>
+
+  <script src="/config.js" defer></script>
+  <script src="/static/portal.js" defer></script>
+</body>
+</html>

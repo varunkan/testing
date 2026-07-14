@@ -2,3 +2,32 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Portal runtime data
+*.db
+*.sqlite
+*.sqlite3
+
+# Xcode / iOS
+ios/ForgeDesk.xcodeproj/
+ios/ForgeDesk.xcworkspace/
+ios/**/xcuserdata/
+DerivedData/
+*.xcuserstate

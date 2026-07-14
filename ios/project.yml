@@ -1,0 +1,35 @@
+name: ForgeDesk
+options:
+  bundleIdPrefix: com.forgedesk
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    INFOPLIST_FILE: ForgeDesk/Info.plist
+    PRODUCT_BUNDLE_IDENTIFIER: com.forgedesk.app
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: false
+targets:
+  ForgeDesk:
+    type: application
+    platform: iOS
+    sources:
+      - path: ForgeDesk
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_NAME: ForgeDesk
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: ForgeDesk/Info.plist
+      properties:
+        CFBundleDisplayName: Forge Desk
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
